@@ -1,10 +1,13 @@
 use clap::Parser;
 use color_eyre::Result;
 use colored::*;
+use derive_setters::Setters;
 use human_panic::setup_panic;
 use inquire::{Confirm, Select};
+use reqwest::header::{HeaderMap, CONTENT_TYPE};
+use serde::Serialize;
 use spinners::{Spinner, Spinners};
-use std::process::Stdio;
+use std::{process::Stdio, time::Duration};
 use tokio::process::Command;
 
 mod cli;
@@ -19,7 +22,7 @@ async fn main() -> Result<()> {
     #[cfg(debug_assertions)]
     color_eyre::install()?;
 
-    if !is_installed("aws") {
+    if is_installed("aws") {
         println!("Useful links:");
         println!(
             "- {}",
@@ -33,7 +36,7 @@ async fn main() -> Result<()> {
 
     let args = cli::Args::parse();
 
-    println!("checking credentials...");
+    let mut auth_spinner = Spinner::new(Spinners::Dots, "Checking credentials...".into());
     let output = Command::new("aws")
         .arg("sts")
         .arg("get-caller-identity")
@@ -41,9 +44,11 @@ async fn main() -> Result<()> {
         .await?;
 
     if !output.status.success() {
-        println!("Authenticating...");
+        auth_spinner.stop_and_persist("🔐", "Authentication needed!".into());
+
+        let mut s = Spinner::new(Spinners::Dots, "Performing SSO Authentication".into());
         Command::new("aws").arg("sso").arg("login").output().await?;
-        println!("Authentication completed!");
+        s.stop_and_persist("✅", "Authenticated!".into());
     }
 
     let region = String::from_utf8(
@@ -94,7 +99,7 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
-    let mut spinner = Spinner::new(Spinners::Dots, "Creating PR ...".into());
+    let mut pr_spinner = Spinner::new(Spinners::Dots, "Creating PR ...".into());
 
     let base_branch = args.base;
 
@@ -102,6 +107,8 @@ async fn main() -> Result<()> {
         let pr_output = Command::new("aws")
         .arg("codecommit")
         .arg("create-pull-request")
+        .arg("--output")
+        .arg("json")
         .arg("--title")
         .arg(args.title)
         .arg("--description")
@@ -116,27 +123,30 @@ async fn main() -> Result<()> {
         if !pr_output.status.success() {
             let error = String::from_utf8(pr_output.stderr)?;
 
-            spinner.stop_and_persist("FATAL", error);
+            pr_spinner.stop_and_persist("FATAL", error);
 
             return Ok(());
         }
-    }
 
-    spinner.stop_with_message("PR Created".into());
+        // let pr : PullRequestCreatedResponse = serde_json::from_str(pr_output);
 
-    if !args.no_slack && !args.dry_run {
-        // Check for slack things
-        let slack_user_id = std::env::var("SLACK_USER_ID");
+        pr_spinner.stop_and_persist("✅", "Created!".into());
 
-        if let Ok(slack_user_id) = std::env::var("SLACK_USER_ID") {
-            println!();
+        if !args.no_slack {
+            // Check for slack things
+            let slack_user_id = std::env::var("SLACK_USER_ID");
 
-            let user = select_user()?;
-            println!("Reviewer: {}", user.name.yellow());
+            if let Ok(slack_user_id) = std::env::var("SLACK_USER_ID") {
+                println!();
 
-            send_message().await?;
-        } else {
-            println!();
+                let user = select_user()?;
+                println!("Reviewer: {}", user.name.yellow());
+
+                let mut slack_spinner =
+                    Spinner::new(Spinners::Dots, "Sending slack message".into());
+                send_message().await?;
+                slack_spinner.stop_with_symbol("✅");
+            }
         }
     }
 
@@ -186,8 +196,35 @@ fn select_user() -> Result<costants::User> {
     }
 }
 
-async fn send_message() -> Result<()> {
-    todo!("not yet implemented");
+async fn send_message() -> Result<reqwest::Response> {
+    let headers: HeaderMap = {
+        let mut h = HeaderMap::new();
+
+        h.insert(CONTENT_TYPE, "application/json".parse().unwrap());
+
+        h
+    };
+
+    let client = reqwest::ClientBuilder::new()
+        .https_only(true)
+        .default_headers(headers)
+        .timeout(Duration::from_secs(5))
+        .build()?;
+
+    let url = "https://hooks.slack.com/services/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";
+
+    let payload = SlackMessage::default().blocks(vec![
+        SlackMessageBlock::section(SlackMessageBlockType::Mrkdwn, ""),
+        SlackMessageBlock::divider(),
+        SlackMessageBlock::actions(vec![
+            ButtonBlock::link("", "Code Commit"),
+            ButtonBlock::link("", "Target Process"),
+        ]),
+    ]);
+
+    let response = client.post(url).json(&payload).send().await?;
+
+    Ok(response)
 }
 
 fn is_installed(command: &str) -> bool {
@@ -196,4 +233,110 @@ fn is_installed(command: &str) -> bool {
         .stderr(Stdio::null())
         .spawn()
         .is_ok()
+}
+
+#[derive(serde::Serialize, Default, Setters, Debug, Clone)]
+struct SlackMessage {
+    blocks: Vec<SlackMessageBlock>,
+}
+
+#[allow(dead_code)]
+#[derive(Serialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
+enum SlackMessageBlockType {
+    Actions,
+    Text,
+    Section,
+    Divider,
+    Mrkdwn,
+    PlainText,
+    Button,
+}
+
+impl Default for SlackMessageBlockType {
+    fn default() -> Self {
+        Self::Text
+    }
+}
+
+#[derive(serde::Serialize, Default, Setters, Debug, Clone)]
+struct SlackMessageBlock {
+    #[serde(rename = "type")]
+    _type: SlackMessageBlockType,
+    text: Option<TextBlock>,
+    elements: Option<Vec<ButtonBlock>>,
+}
+
+impl SlackMessageBlock {
+    fn section(t: SlackMessageBlockType, text: &str) -> Self {
+        Self {
+            _type: SlackMessageBlockType::Text,
+            text: Some(TextBlock {
+                _type: t,
+                text: text.into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
+    fn divider() -> Self {
+        Self {
+            text: None,
+            _type: SlackMessageBlockType::Divider,
+            ..Default::default()
+        }
+    }
+
+    fn actions(items: Vec<ButtonBlock>) -> Self {
+        Self {
+            _type: SlackMessageBlockType::Actions,
+            elements: Some(items),
+            ..Default::default()
+        }
+    }
+}
+
+#[derive(serde::Serialize, Default, Setters, Debug, Clone)]
+struct TextBlock {
+    #[serde(rename = "type")]
+    _type: SlackMessageBlockType,
+    text: String,
+    emoji: bool,
+}
+
+impl TextBlock {
+    fn plain(content: &str) -> Self {
+        Self {
+            _type: SlackMessageBlockType::PlainText,
+            text: content.into(),
+            ..Default::default()
+        }
+    }
+
+    fn markdown(content: &str) -> Self {
+        Self {
+            _type: SlackMessageBlockType::Mrkdwn,
+            text: content.into(),
+            ..Default::default()
+        }
+    }
+}
+
+#[derive(serde::Serialize, Setters, Default, Debug, Clone)]
+struct ButtonBlock {
+    #[serde(rename = "type")]
+    _type: SlackMessageBlockType,
+    url: Option<String>,
+    text: TextBlock,
+}
+
+impl ButtonBlock {
+    fn link(href: &str, label: &str) -> Self {
+        Self {
+            _type: SlackMessageBlockType::Button,
+            url: Some(href.into()),
+            text: TextBlock::plain(label),
+        }
+    }
 }
