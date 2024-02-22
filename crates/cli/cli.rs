@@ -2,7 +2,11 @@ use clap::Parser;
 
 #[derive(Parser, Debug, Clone)]
 pub struct Args {
-    pub title: String,
+    #[arg(long, short)]
+    pub title: Option<String>,
+
+    #[arg(long, short)]
+    pub description: Option<String>,
 
     #[arg(long, short, default_value = "develop")]
     pub base: String,

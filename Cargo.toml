@@ -5,7 +5,25 @@ edition = "2021"
 
 [[bin]]
 name = "cpr"
-path = "src/main.rs"
+path = "crates/cli/main.rs"
+
+[workspace]
+members = ["crates/target_process", "crates/commands", "crates/slack"]
+
+[profile.release]
+debug = 1
+
+[profile.release-lto]
+inherits = "release"
+opt-level = 3
+strip = "symbols"
+debug = "none"
+debug-assertions = false
+overflow-checks = false
+lto = "fat"
+panic = "abort"
+incremental = false
+codegen-units = 1
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -14,13 +32,14 @@ anyhow = "1.0.80"
 clap = { version = "4.5.1", features = ["derive"] }
 color-eyre = "0.6.2"
 colored = { version = "2.1.0" }
-derive_setters = "0.1.6"
 human-panic = "1.2.3"
 inquire = "0.6.2"
 postage = { version = "0.5.0", features = ["futures"] }
-reqwest = { version = "0.11.24", features = ["serde_json", "json"] }
-serde = { version = "1.0.196", features = ["derive"] }
 serde_json = "1.0.113"
 spinners = "4.1.1"
 thiserror = "1.0.57"
 tokio = { version = "1.36.0", features = ["full"] }
+slack = { path = "./crates/slack" }
+commands = { path = "./crates/commands" }
+target_process = { path = "./crates/target_process" }
+regex = "1.10.3"
