@@ -103,8 +103,6 @@ pub async fn create_pull_request(
         repository, source_branch, target_branch
     );
 
-    cmd!("aws", "code-commit", "help").output()?;
-
     let stdout = aws!(
         "codecommit",
         "create-pull-request",

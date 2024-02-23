@@ -47,8 +47,12 @@ async fn main() -> Result<()> {
         auth_spinner.stop_and_persist("✅", "Authenticated!".into());
     }
 
-    let region = aws::get_region().await?;
-    let branch = git::current_branch().await?;
+    let raw_region = aws::get_region().await?;
+    let region = raw_region.trim().to_string();
+
+    let raw_branch = git::current_branch().await?;
+    let branch = raw_branch.trim().to_string();
+
     let feature_name = branch.split('/').last().unwrap_or(&branch);
 
     let tp_link = format!("https://satispay.tpondemand.com/entity/{feature_name}");
@@ -58,7 +62,8 @@ async fn main() -> Result<()> {
     let base_branch = args.base;
 
     let repository = {
-        let url = git::get_remote_url("origin").await?;
+        let raw_url = git::get_remote_url("origin").await?;
+        let url = raw_url.trim();
 
         match url.split('/').last() {
             Some(url) => url.trim().replace(".git", ""),
@@ -70,10 +75,10 @@ async fn main() -> Result<()> {
     println!("Check if the details below before proceding:");
 
     println!();
-    println!("Title:");
-    println!("Description: {}", description.yellow());
-    println!("Source Branch: {}", branch.yellow());
-    println!("Target Branch: {}", base_branch.yellow());
+    println!("Title: {}", title.yellow());
+    println!("Description: {}", description.trim().yellow());
+    println!("Source Branch: {}", branch.trim().yellow());
+    println!("Target Branch: {}", base_branch.trim().yellow());
     println!("Repository: {}", repository.yellow());
 
     println!();
@@ -86,51 +91,51 @@ async fn main() -> Result<()> {
         return Ok(());
     };
 
-    if !args.dry_run {
-        let mut pr_spinner = Spinner::new(Spinners::Dots, "Creating PR ...".into());
+    if args.dry_run {
+        return Ok(());
+    }
 
-        let pr = aws::create_pull_request(
-            &repository,
-            &title,
-            &format!("See: {}", tp_link),
-            &branch,
-            &base_branch,
-            &args.profile,
-        )
-        .await?;
+    let mut pr_spinner = Spinner::new(Spinners::Dots, "Creating PR ...".into());
 
-        pr_spinner.stop_and_persist("✅", "Created!".to_string());
+    let pr = aws::create_pull_request(
+        &repository,
+        &title,
+        &format!("See: {}", tp_link),
+        &branch,
+        &base_branch,
+        &args.profile,
+    )
+    .await?;
 
-        if !args.no_slack {
-            // Check for slack things
-            let slack_user_id = std::env::var("SLACK_USER_ID");
+    let pr_link = format!("https://{region}.console.aws.amazon.com/codesuite/codecommit/repositories/{repository}/pull-requests/{pr_id}/details", pr_id = pr.pull_request.pull_request_id);
 
-            if let Ok(slack_user_id) = std::env::var("SLACK_USER_ID") {
-                println!();
+    pr_spinner.stop_and_persist("🔗", format!("PR Available at: {pr_link}"));
 
-                let user = select_user()?;
-                println!("Reviewer: {}", user.name.yellow());
+    if args.no_slack {
+        return Ok(());
+    }
 
-                let mut slack_spinner =
-                    Spinner::new(Spinners::Dots, "Sending slack message".into());
+    if let Ok(slack_user_id) = std::env::var("SLACK_USER_ID") {
+        println!();
 
-                let pr_link = format!("https://{region}.console.aws.amazon.com/codesuite/codecommit/repositories/{repository}/pull-requests/{pr_id}/details", pr_id = pr.pull_request.pull_request_id);
+        let user = select_user()?;
+        println!("Reviewer: {}", user.name.yellow());
 
-                slack::send_message(
-                    format!(
-                        "<@{slack_user_id}> opened a PR to: <@{reviewer}> - `{repository}` <{pr_link}|{pr_id}: {title}>",
-                        reviewer = user.id,
-                        pr_id = pr.pull_request.pull_request_id,
-                    ),
-                    pr_link,
-                    tp_link
-                ).await?;
+        let mut slack_spinner = Spinner::new(Spinners::Dots, "Sending slack message".into());
 
-                slack_spinner.stop_with_symbol("✅");
-            }
-        }
-    } else {
-        println!("Title: {title}");
+        let pr_link = format!("https://{region}.console.aws.amazon.com/codesuite/codecommit/repositories/{repository}/pull-requests/{pr_id}/details", pr_id = pr.pull_request.pull_request_id);
+
+        slack::send_message(
+            format!(
+                "<@{slack_user_id}> opened a PR to: <@{reviewer}> - `{repository}` <{pr_link}|{pr_id}: {title}>",
+                reviewer = user.id,
+                pr_id = pr.pull_request.pull_request_id,
+            ),
+            pr_link,
+            tp_link
+        ).await?;
+
+        slack_spinner.stop_with_symbol("✅");
     }
 
     Ok(())
