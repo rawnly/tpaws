@@ -1,10 +1,14 @@
 [package]
-name = "create-pr"
+name = "satispay-cli"
 version = "0.1.0"
 edition = "2021"
 
 [[bin]]
-name = "cpr"
+name = "satispay"
+path = "crates/cli/main.rs"
+
+[[bin]]
+name = "satis"
 path = "crates/cli/main.rs"
 
 [workspace]
@@ -43,3 +47,4 @@ slack = { path = "./crates/slack" }
 commands = { path = "./crates/commands" }
 target_process = { path = "./crates/target_process" }
 regex = "1.10.3"
+strum = { version = "0.26.1", features = ["derive"] }
