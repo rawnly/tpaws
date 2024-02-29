@@ -48,3 +48,5 @@ commands = { path = "./crates/commands" }
 target_process = { path = "./crates/target_process" }
 regex = "1.10.3"
 strum = { version = "0.26.1", features = ["derive"] }
+termimad = "0.29.1"
+mdka = "1.2.4"

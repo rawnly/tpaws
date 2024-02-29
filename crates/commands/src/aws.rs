@@ -1,6 +1,6 @@
+use crate::{command, spawn_command};
 use color_eyre::{eyre::eyre, Result};
 use serde::{Deserialize, Serialize};
-use tokio::process::Command;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "PascalCase")]
@@ -25,41 +25,8 @@ pub struct PullRequestResponse {
     pub pull_request: PullRequest,
 }
 
-macro_rules! cmd {
-    ($cmd:expr, $($arg:expr),+) => {{
-        let mut command = &mut tokio::process::Command::new($cmd);
-
-        $(
-            command = command.arg($arg);
-        )*
-
-        command
-    }};
-}
-
-macro_rules! aws {
-    ($( $x:expr ),* ) => {
-        #[allow(clippy::vec_init_then_push)]
-        {
-            let mut args = Vec::new();
-
-            $(
-                args.push($x);
-            )*
-
-            if cfg!(debug_assertions) {
-                dbg!(&args);
-            }
-
-            Command::new("aws")
-                .args(&args.clone())
-        }
-    };
-}
-
 pub async fn login(profile: &str) -> Result<()> {
-    aws!("sso", "login", "--profile", profile)
-        .spawn()?
+    spawn_command!("aws", "sso", "login", "--profile", profile)?
         .wait()
         .await?;
 
@@ -67,7 +34,7 @@ pub async fn login(profile: &str) -> Result<()> {
 }
 
 pub async fn get_caller_identity() -> Result<CallerIdentity> {
-    let output = aws!("sts", "get-caller-identity", "--output", "json")
+    let output = command!("aws", "sts", "get-caller-identity", "--output", "json")
         .output()
         .await?;
 
@@ -84,7 +51,10 @@ pub async fn get_caller_identity() -> Result<CallerIdentity> {
 }
 
 pub async fn get_region() -> Result<String> {
-    let stdout = aws!("configure", "get", "region").output().await?.stdout;
+    let stdout = command!("aws", "configure", "get", "region")
+        .output()
+        .await?
+        .stdout;
     let region = String::from_utf8(stdout)?;
 
     Ok(region)
@@ -103,7 +73,8 @@ pub async fn create_pull_request(
         repository, source_branch, target_branch
     );
 
-    let stdout = aws!(
+    let stdout = command!(
+        "aws",
         "codecommit",
         "create-pull-request",
         "--output",

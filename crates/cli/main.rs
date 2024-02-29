@@ -2,6 +2,8 @@ use clap::Parser;
 use color_eyre::Result;
 use colored::*;
 use human_panic::setup_panic;
+use mdka::from_html;
+use target_process::models::assignable::Assignable;
 
 mod cli;
 mod costants;
@@ -16,7 +18,7 @@ async fn main() -> Result<()> {
     #[cfg(debug_assertions)]
     color_eyre::install()?;
 
-    if !commands::has("aws") {
+    if !commands::is_installed!("aws") {
         println!("Useful links:");
         println!(
             "- {}",
@@ -50,8 +52,51 @@ async fn main() -> Result<()> {
             )
             .await?;
         }
-        _ => unimplemented!("wait!"),
+        cli::Commands::Ticket { subcommands } => match subcommands {
+            cli::TicketCommands::Start {
+                id_or_url,
+                branch,
+                no_git,
+                no_assign,
+            } => {
+                let id = utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url);
+                let assignable = target_process::get_assignable(&id).await?;
+                let me = target_process::get_me().await?;
+
+                if !no_assign {
+                    let user_id = me.id;
+                    let assignable_id = assignable.id;
+                    target_process::assign_task(assignable_id, user_id).await?;
+                }
+
+                if !no_git {
+                    let branch = branch.unwrap_or(utils::branch_name(assignable));
+                    commands::git::flow::feature::start(&branch).await?;
+                }
+
+                println!();
+            }
+            cli::TicketCommands::Get { id_or_url, json } => {
+                let id = utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url);
+                let assignable = target_process::get_assignable(&id).await?;
+
+                println!();
+                print_body(&assignable);
+                println!();
+            }
+        },
     }
 
     Ok(())
+}
+
+fn print_body(assignable: &Assignable) {
+    if !assignable.description.starts_with("<!--markdown-->") {
+        let description = from_html(&assignable.description);
+
+        termimad::print_text(&description);
+        return;
+    }
+
+    termimad::print_text(&assignable.description.replace("<!--markdown-->", ""));
 }

@@ -5,7 +5,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 pub mod models;
 
-pub const BASE_URL: &str = "https://satispay.tpondemand.com/api/v1";
+pub const BASE_URL: &str = "https://satispay.tpondemand.com/api";
 
 fn make_client() -> reqwest::Client {
     reqwest::Client::new()
@@ -24,15 +24,21 @@ fn get_token() -> Result<String> {
     Ok(token)
 }
 
-fn make_url(path: String, filter: Option<String>) -> Result<reqwest::Url> {
+pub trait Parameter {
+    fn into() -> (String, String);
+}
+
+fn make_url<I>(path: String, _params: I) -> Result<reqwest::Url>
+where
+    I: IntoIterator<Item = Param>,
+{
     let token = get_token()?;
-    let mut params: Vec<(String, String)> = vec![("access_token".to_string(), token)];
+    let mut params: Vec<Param> = vec![Param::AccessToken(token)];
+    params.extend(_params);
 
-    if let Some(filter) = filter {
-        params.push(("where".to_string(), filter))
-    }
+    let params: Vec<(String, String)> = params.into_iter().map(|p| p.into()).collect();
 
-    let url = reqwest::Url::parse_with_params(&format!("{BASE_URL}/{path}"), &params)?;
+    let url = reqwest::Url::parse_with_params(&format!("{BASE_URL}/{path}"), params)?;
 
     Ok(url)
 }
@@ -41,9 +47,12 @@ pub fn has_token() -> bool {
     get_token().is_ok()
 }
 
-pub async fn fetch_text(path: String, filter: Option<String>) -> Result<String> {
+pub async fn fetch_text<I>(path: String, params: I) -> Result<String>
+where
+    I: IntoIterator<Item = Param>,
+{
     let client = make_client();
-    let url = make_url(path, filter)?;
+    let url = make_url(path, params)?;
     let headers = get_headers();
 
     let response = client.get(url).headers(headers).send().await?;
@@ -52,9 +61,43 @@ pub async fn fetch_text(path: String, filter: Option<String>) -> Result<String> 
     Ok(txt)
 }
 
-pub async fn fetch<T: DeserializeOwned>(path: String, filter: Option<String>) -> Result<T> {
+pub enum Param {
+    Select(String),
+    Where(String),
+    Filter(String),
+    AccessToken(String),
+}
+
+impl Into<(String, String)> for Param {
+    fn into(self) -> (String, String) {
+        match self {
+            Self::AccessToken(value) => ("access_token".to_string(), value),
+            Self::Where(value) => ("where".to_string(), value),
+            Self::Filter(value) => ("filter".to_string(), value),
+            Self::Select(value) => ("select".to_string(), value),
+        }
+    }
+}
+
+impl From<(String, String)> for Param {
+    fn from(value: (String, String)) -> Self {
+        match value.0.as_str() {
+            "filter" => Self::Filter(value.1),
+            "where" => Self::Where(value.1),
+            "select" => Self::Select(value.1),
+            "access_token" => Self::AccessToken(value.1),
+            _ => Self::Filter(value.1),
+        }
+    }
+}
+
+pub async fn fetch<T, I>(path: String, params: I) -> Result<T>
+where
+    T: DeserializeOwned,
+    I: IntoIterator<Item = Param>,
+{
     let client = make_client();
-    let url = make_url(path, filter)?;
+    let url = make_url(path, params)?;
     let headers = get_headers();
 
     let response = client.get(url).headers(headers).send().await?;
@@ -64,19 +107,19 @@ pub async fn fetch<T: DeserializeOwned>(path: String, filter: Option<String>) ->
 }
 
 pub async fn get_assignable(id: &str) -> Result<Assignable> {
-    let url = format!("Assignables/{id}");
+    let url = format!("/v1/Assignables/{id}");
 
-    fetch(url, None).await
+    fetch(url, []).await
 }
 
 pub async fn get_me() -> Result<CurrentUser> {
-    fetch("Users/loggeduser".into(), None).await
+    fetch("/v1/Users/loggeduser".into(), []).await
 }
 
 pub async fn get_my_tasks(current_user_id: usize) -> Result<Vec<Assignable>> {
-    let filter = format!("(Owner.Id = {current_user_id})");
+    let filter = Param::Filter(format!("(Owner.Id = {current_user_id})"));
 
-    fetch("Assignables".into(), Some(filter)).await
+    fetch("/v1/Assignables".into(), vec![filter]).await
 }
 
 #[derive(Serialize, Debug)]
@@ -101,7 +144,7 @@ pub(crate) struct AssignedUser {
 pub async fn assign_task(assignable_id: usize, user_id: usize) -> Result<Assignable> {
     let client = make_client();
     let headers = get_headers();
-    let url = make_url(format!("/Assignables/{assignable_id}"), None)?;
+    let url = make_url(format!("/v1/Assignables/{assignable_id}"), [])?;
 
     let payload = AssignDeveloperPayload {
         assignments: vec![AssignedUser {
