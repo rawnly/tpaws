@@ -2,6 +2,7 @@ use color_eyre::{eyre::OptionExt, Result};
 use regex::Regex;
 use target_process::models::assignable::Assignable;
 
+#[deprecated]
 pub(crate) fn branch_name(assignable: Assignable) -> String {
     let mut name = assignable.name.clone().to_lowercase();
     name.retain(|x| {

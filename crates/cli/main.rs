@@ -1,6 +1,7 @@
 use clap::Parser;
-use color_eyre::Result;
+use color_eyre::{eyre::OptionExt, Result};
 use colored::*;
+use commands::{git, spawn_command};
 use human_panic::setup_panic;
 use mdka::from_html;
 use target_process::models::assignable::Assignable;
@@ -70,7 +71,7 @@ async fn main() -> Result<()> {
                 }
 
                 if !no_git {
-                    let branch = branch.unwrap_or(utils::branch_name(assignable));
+                    let branch = branch.unwrap_or(assignable.get_branch());
                     commands::git::flow::feature::start(&branch).await?;
                 }
 
@@ -83,6 +84,34 @@ async fn main() -> Result<()> {
                 println!();
                 print_body(&assignable);
                 println!();
+            }
+            cli::TicketCommands::Open { id_or_url } => {
+                let id = if let Some(id_or_url) = id_or_url {
+                    utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url)
+                } else {
+                    let branch = git::current_branch().await?;
+
+                    utils::get_ticket_id_from_branch(branch)
+                        .ok_or_eyre("Unable to extract userStory ID")?
+                };
+
+                let assignable = target_process::get_assignable(&id).await?;
+
+                spawn_command!("open", assignable.get_link())?;
+            }
+            cli::TicketCommands::Link { id_or_url } => {
+                let id = if let Some(id_or_url) = id_or_url {
+                    utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url)
+                } else {
+                    let branch = git::current_branch().await?;
+
+                    utils::get_ticket_id_from_branch(branch)
+                        .ok_or_eyre("Unable to extract userStory ID")?
+                };
+
+                let assignable = target_process::get_assignable(&id).await?;
+
+                println!("{}", assignable.get_link());
             }
         },
     }

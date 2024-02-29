@@ -31,6 +31,12 @@ pub enum TicketCommands {
         #[arg(long)]
         no_assign: bool,
     },
+    Open {
+        id_or_url: Option<String>,
+    },
+    Link {
+        id_or_url: Option<String>,
+    },
 }
 
 #[derive(Subcommand, strum::Display, Debug, Clone)]

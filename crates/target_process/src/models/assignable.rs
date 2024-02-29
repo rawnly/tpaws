@@ -13,6 +13,24 @@ pub struct Assignable {
     pub team: Team,
 }
 
+impl Assignable {
+    pub fn get_link(self) -> String {
+        format!("https://satispay.tpondemand.com/entity/{id}", id = self.id).to_string()
+    }
+
+    pub fn get_branch(self) -> String {
+        let mut name = self.name.clone().to_lowercase();
+        name.retain(|x| {
+            ![
+                '(', ')', '[', ']', '{', '}', ',', '\"', '/', '.', ';', ':', '\'', '-', '_',
+            ]
+            .contains(&x)
+        });
+
+        format!("{}_{}", self.id, name.replace(' ', "_"))
+    }
+}
+
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct GeneralUser {
