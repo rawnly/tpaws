@@ -14,7 +14,7 @@ pub struct Args {
 #[derive(Subcommand, strum::Display, Debug, Clone)]
 pub enum TicketCommands {
     Get {
-        id_or_url: String,
+        id_or_url: Option<String>,
 
         #[arg(long)]
         json: bool,

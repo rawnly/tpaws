@@ -78,7 +78,15 @@ async fn main() -> Result<()> {
                 println!();
             }
             cli::TicketCommands::Get { id_or_url, json } => {
-                let id = utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url);
+                let id = if let Some(id_or_url) = id_or_url {
+                    utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url)
+                } else {
+                    let branch = git::current_branch().await?;
+
+                    utils::get_ticket_id_from_branch(branch)
+                        .ok_or_eyre("Unable to extract userStory ID")?
+                };
+
                 let assignable = target_process::get_assignable(&id).await?;
 
                 println!();
