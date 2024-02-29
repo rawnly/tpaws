@@ -68,6 +68,7 @@ pub enum Param {
     AccessToken(String),
 }
 
+#[allow(clippy::from_over_into)]
 impl Into<(String, String)> for Param {
     fn into(self) -> (String, String) {
         match self {
