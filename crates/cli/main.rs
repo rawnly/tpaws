@@ -219,6 +219,49 @@ async fn main() -> Result<()> {
                 no_git,
                 no_assign,
             } => {
+                let me = target_process::get_me().await?;
+                let all_my_tickets = target_process::get_my_tasks(me.id).await?;
+                let list: Vec<String> = all_my_tickets
+                    .iter()
+                    .filter_map(|t| {
+                        let state = EntityStates::try_from(t.entity_state.id).ok()?;
+
+                        if state != EntityStates::Open && state != EntityStates::Planned
+                            || t.name.is_empty()
+                        {
+                            return None;
+                        }
+
+                        Some(t.name.clone())
+                    })
+                    .collect();
+
+                if list.is_empty() {
+                    dbg!(&all_my_tickets);
+                    println!("No tickets are available, please provide an id");
+                    return Ok(());
+                }
+
+                let id_or_url = match id_or_url {
+                    Some(v) => v,
+                    None => {
+                        let title = inquire::Select::new("Choose a ticket", list).prompt()?;
+
+                        let id = all_my_tickets
+                            .iter()
+                            .find_map(|ticket| {
+                                if ticket.name == title {
+                                    return Some(ticket.id);
+                                }
+
+                                None
+                            })
+                            .map(|id| id.to_string());
+
+                        id.ok_or_eyre("unable to extract ticket id")?
+                    }
+                };
+
                 let id = utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url);
                 let assignable = target_process::get_assignable(&id).await?;
                 let me = target_process::get_me().await?;
@@ -265,8 +308,15 @@ async fn main() -> Result<()> {
 
                 let assignable = target_process::get_assignable(&id).await?;
 
+                println!("{}", assignable.name);
+                println!("===================");
                 println!();
-                print_body(&assignable);
+
+                match assignable.description {
+                    Some(description) => print_body(description),
+                    None => println!("no description provided."),
+                };
+
                 println!();
             }
             cli::TicketCommands::Open { id_or_url } => {
@@ -303,13 +353,13 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn print_body(assignable: &Assignable) {
-    if !assignable.description.starts_with("<!--markdown-->") {
-        let description = from_html(&assignable.description);
+fn print_body(description: String) {
+    if !description.starts_with("<!--markdown-->") {
+        let description = from_html(&description);
 
         termimad::print_text(&description);
         return;
     }
 
-    termimad::print_text(&assignable.description.replace("<!--markdown-->", ""));
+    termimad::print_text(&description.replace("<!--markdown-->", ""));
 }

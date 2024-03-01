@@ -4,11 +4,11 @@ pub struct Assignable {
     pub resource_type: String,
     pub id: usize,
     pub name: String,
-    pub description: String,
+    pub description: Option<String>,
+    pub entity_state: EntityState,
     pub last_editor: GeneralUser,
     pub owner: GeneralUser,
     pub creator: GeneralUser,
-    pub entity_state: EntityState,
     pub priority: Priority,
     pub team: Team,
 }

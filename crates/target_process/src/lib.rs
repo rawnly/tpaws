@@ -5,11 +5,17 @@ use models::{
     EntityStates,
 };
 use reqwest::header::*;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 pub mod models;
 
 pub const BASE_URL: &str = "https://satispay.tpondemand.com/api";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+struct ResponseListV1<T> {
+    pub items: Vec<T>,
+}
 
 fn make_client() -> reqwest::Client {
     reqwest::Client::new()
@@ -42,7 +48,8 @@ where
 
     let params: Vec<(String, String)> = params.into_iter().map(|p| p.into()).collect();
 
-    let url = reqwest::Url::parse_with_params(&format!("{BASE_URL}/{path}"), params)?;
+    let url =
+        reqwest::Url::parse_with_params(&format!("{BASE_URL}/{path}").replace("//", "/"), params)?;
 
     Ok(url)
 }
@@ -65,6 +72,7 @@ where
     Ok(txt)
 }
 
+#[derive(Debug, Clone)]
 pub enum Param {
     Select(String),
     Where(String),
@@ -122,9 +130,17 @@ pub async fn get_me() -> Result<CurrentUser> {
 }
 
 pub async fn get_my_tasks(current_user_id: usize) -> Result<Vec<Assignable>> {
-    let filter = Param::Filter(format!("(Owner.Id = {current_user_id})"));
+    let filter = Param::Filter(format!("(Owner.Id eq {current_user_id})"));
 
-    fetch("/v1/Assignables".into(), vec![filter]).await
+    // if cfg!(debug_assertions) {
+    //     let txt = fetch_text("/v1/Assignables".into(), vec![filter.clone()]).await?;
+    //     dbg!(txt);
+    // }
+
+    let api_response: ResponseListV1<Assignable> =
+        fetch("/v1/Assignables".into(), vec![filter]).await?;
+
+    Ok(api_response.items)
 }
 
 #[derive(Serialize, Debug)]
