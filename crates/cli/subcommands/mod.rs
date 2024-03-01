@@ -1,1 +1,1 @@
-pub mod create_pr;
+pub mod pull_request;

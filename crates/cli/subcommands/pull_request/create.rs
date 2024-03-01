@@ -6,7 +6,7 @@ use spinners::{Spinner, Spinners};
 
 use crate::{cli, costants, utils};
 
-pub async fn create_pr(
+pub async fn create(
     args: cli::Args,
     aws: &AWS,
     title: Option<String>,

@@ -14,9 +14,13 @@ pub struct Args {
 #[derive(Subcommand, strum::Display, Debug, Clone)]
 pub enum TicketCommands {
     /// Info about the current branch or given userStory id
-    Get {
+    View {
         /// userStory ID or URL
         id_or_url: Option<String>,
+
+        /// Opens userStory in the browser
+        #[arg(long, short)]
+        web: bool,
     },
     /// Run `git flow start` and update status/assigned developer
     Start {
@@ -37,8 +41,6 @@ pub enum TicketCommands {
     },
     /// Run `git flow finish`
     Finish { id_or_url: Option<String> },
-    /// Opens userStory in the browser
-    Open { id_or_url: Option<String> },
     /// Print userStory link
     Link { id_or_url: Option<String> },
 }

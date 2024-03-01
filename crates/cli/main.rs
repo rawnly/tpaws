@@ -2,15 +2,18 @@ use clap::Parser;
 use color_eyre::{eyre::OptionExt, Result};
 use colored::*;
 use commands::{
-    aws::{PullRequest, PullRequestStatus, AWS},
+    aws::{PullRequestStatus, AWS},
     git, spawn_command,
 };
 use human_panic::setup_panic;
 use mdka::from_html;
 use spinners::Spinner;
-use target_process::models::{assignable::Assignable, EntityStates};
+use target_process::models::EntityStates;
+
+use crate::context::GlobalContext;
 
 mod cli;
+mod context;
 mod costants;
 mod subcommands;
 mod utils;
@@ -45,10 +48,14 @@ async fn main() -> Result<()> {
             profile,
             ..
         } => {
+            let branch = git::current_branch().await?;
+            let repository = utils::get_repository().await?;
+
             let aws = AWS::new(profile);
             aws.refresh_auth_if_needed().await?;
 
             let region = aws.get_region().await?;
+            let ctx = GlobalContext::new(aws, branch, repository);
 
             match subcommands {
                 cli::PullRequestCommands::Create {
@@ -57,7 +64,7 @@ async fn main() -> Result<()> {
                     base,
                     no_slack,
                 } => {
-                    subcommands::create_pr::create_pr(
+                    subcommands::pull_request::create(
                         create_pr_args,
                         &aws,
                         title,
@@ -68,47 +75,7 @@ async fn main() -> Result<()> {
                     .await?
                 }
                 cli::PullRequestCommands::View { id, web } => {
-                    let branch = git::current_branch().await?;
-                    let repository = utils::get_repository().await?;
-
-                    let all_prs = aws
-                        .list_pull_requests(repository.clone(), PullRequestStatus::Open)
-                        .await?;
-
-                    for pr_id in all_prs.pull_request_ids {
-                        let current_pr = aws.get_pull_request(pr_id).await?;
-                        let link = utils::build_pr_link(
-                            region.clone(),
-                            repository.clone(),
-                            current_pr.clone().pull_request.id.to_string(),
-                        );
-
-                        for target in current_pr.pull_request.targets {
-                            if target.source.replace("refs/heads/", "") != branch {
-                                continue;
-                            }
-
-                            if web {
-                                println!(
-                                    "Opening \"{title}\"...",
-                                    title = current_pr.pull_request.title.yellow()
-                                );
-                                spawn_command!("open", &link)?;
-                            } else {
-                                println!(
-                                    "[{id}] {title} - ({status})",
-                                    id = current_pr.pull_request.id,
-                                    title = current_pr.pull_request.title,
-                                    status = current_pr.pull_request.status
-                                );
-
-                                println!();
-                                println!("{}", link.blue());
-                            }
-
-                            break;
-                        }
-                    }
+                    subcommands::pull_request::view(ctx, id, web).await?
                 }
                 cli::PullRequestCommands::Merge { id } => {
                     let branch = git::current_branch().await?;
@@ -236,15 +203,15 @@ async fn main() -> Result<()> {
                     })
                     .collect();
 
-                if list.is_empty() {
-                    dbg!(&all_my_tickets);
-                    println!("No tickets are available, please provide an id");
-                    return Ok(());
-                }
-
                 let id_or_url = match id_or_url {
                     Some(v) => v,
                     None => {
+                        if list.is_empty() {
+                            dbg!(&all_my_tickets);
+                            println!("No tickets are available, please provide an id");
+                            return Ok(());
+                        }
+
                         let title = inquire::Select::new("Choose a ticket", list).prompt()?;
 
                         let id = all_my_tickets
@@ -296,7 +263,7 @@ async fn main() -> Result<()> {
                 let branch = assignable.get_branch();
                 commands::git::flow::feature::finish(&branch).await?;
             }
-            cli::TicketCommands::Get { id_or_url } => {
+            cli::TicketCommands::View { id_or_url, web } => {
                 let id = if let Some(id_or_url) = id_or_url {
                     utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url)
                 } else {
@@ -307,6 +274,11 @@ async fn main() -> Result<()> {
                 };
 
                 let assignable = target_process::get_assignable(&id).await?;
+
+                if web {
+                    spawn_command!("open", assignable.get_link())?;
+                    return Ok(());
+                }
 
                 println!("{}", assignable.name);
                 println!("===================");
@@ -318,20 +290,6 @@ async fn main() -> Result<()> {
                 };
 
                 println!();
-            }
-            cli::TicketCommands::Open { id_or_url } => {
-                let id = if let Some(id_or_url) = id_or_url {
-                    utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url)
-                } else {
-                    let branch = git::current_branch().await?;
-
-                    utils::get_ticket_id_from_branch(branch)
-                        .ok_or_eyre("Unable to extract userStory ID")?
-                };
-
-                let assignable = target_process::get_assignable(&id).await?;
-
-                spawn_command!("open", assignable.get_link())?;
             }
             cli::TicketCommands::Link { id_or_url } => {
                 let id = if let Some(id_or_url) = id_or_url {

@@ -55,13 +55,18 @@ pub struct PullRequestsList {
     pub pull_request_ids: Vec<String>,
 }
 
+#[derive(Debug, Clone)]
 pub struct AWS {
     pub profile: String,
+    pub region: Option<String>,
 }
 
 impl AWS {
     pub fn new(profile: String) -> Self {
-        Self { profile }
+        Self {
+            profile,
+            region: None,
+        }
     }
 
     pub async fn refresh_auth_if_needed(&self) -> Result<()> {
@@ -129,7 +134,7 @@ impl AWS {
         Err(eyre!("{error_message}"))
     }
 
-    pub async fn get_region(&self) -> Result<String> {
+    pub async fn get_region(&mut self) -> Result<String> {
         let stdout = command!(
             "aws",
             "configure",
@@ -146,6 +151,8 @@ impl AWS {
 
         let region = String::from_utf8(stdout)?;
         let region = region.trim().to_string();
+
+        self.region = Some(region.clone());
 
         Ok(region)
     }

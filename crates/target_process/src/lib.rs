@@ -113,7 +113,17 @@ where
     let url = make_url(path, params)?;
     let headers = get_headers();
 
-    let response = client.get(url).headers(headers).send().await?;
+    if cfg!(debug_assertions) {
+        println!("GET {url}");
+    }
+
+    let response = client
+        .get(url)
+        .headers(headers)
+        .send()
+        .await?
+        .error_for_status()?;
+
     let user = response.json::<T>().await?;
 
     Ok(user)
@@ -131,11 +141,6 @@ pub async fn get_me() -> Result<CurrentUser> {
 
 pub async fn get_my_tasks(current_user_id: usize) -> Result<Vec<Assignable>> {
     let filter = Param::Filter(format!("(Owner.Id eq {current_user_id})"));
-
-    // if cfg!(debug_assertions) {
-    //     let txt = fetch_text("/v1/Assignables".into(), vec![filter.clone()]).await?;
-    //     dbg!(txt);
-    // }
 
     let api_response: ResponseListV1<Assignable> =
         fetch("/v1/Assignables".into(), vec![filter]).await?;
@@ -168,12 +173,17 @@ pub async fn assign_task(assignable_id: usize, user_id: usize) -> Result<Assigna
         }],
     };
 
+    if cfg!(debug_assertions) {
+        println!("POST {url} payload={:?}", payload);
+    }
+
     let response = client
         .post(url)
         .headers(headers)
         .json(&payload)
         .send()
-        .await?;
+        .await?
+        .error_for_status()?;
 
     if cfg!(debug_assertions) {
         dbg!(&response);
@@ -199,12 +209,17 @@ pub async fn update_entity_state(
         },
     };
 
+    if cfg!(debug_assertions) {
+        println!("POST {url} payload={:?}", payload);
+    }
+
     let response = client
         .post(url)
         .headers(headers)
         .json(&payload)
         .send()
-        .await?;
+        .await?
+        .error_for_status()?;
 
     if cfg!(debug_assertions) {
         dbg!(&response);
