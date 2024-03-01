@@ -1,5 +1,9 @@
 use color_eyre::Result;
-use models::{assignable::Assignable, user::CurrentUser};
+use models::{
+    assignable::{Assignable, UpdateEntityStatePayload, ID},
+    user::CurrentUser,
+    EntityStates,
+};
 use reqwest::header::*;
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -125,12 +129,6 @@ pub async fn get_my_tasks(current_user_id: usize) -> Result<Vec<Assignable>> {
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "PascalCase")]
-pub(crate) struct ID {
-    pub id: usize,
-}
-
-#[derive(Serialize, Debug)]
-#[serde(rename_all = "PascalCase")]
 pub(crate) struct AssignDeveloperPayload {
     pub assignments: Vec<AssignedUser>,
 }
@@ -152,6 +150,37 @@ pub async fn assign_task(assignable_id: usize, user_id: usize) -> Result<Assigna
             role: ID { id: 1 },
             general_user: ID { id: user_id },
         }],
+    };
+
+    let response = client
+        .post(url)
+        .headers(headers)
+        .json(&payload)
+        .send()
+        .await?;
+
+    if cfg!(debug_assertions) {
+        dbg!(&response);
+    }
+
+    let assignable: Assignable = response.json().await?;
+
+    Ok(assignable)
+}
+
+pub async fn update_entity_state(
+    assignable_id: usize,
+    entity_state_id: EntityStates,
+) -> Result<Assignable> {
+    let client = make_client();
+    let headers = get_headers();
+    let url = make_url(format!("/v1/Assignables/{assignable_id}"), [])?;
+
+    let payload = UpdateEntityStatePayload {
+        id: assignable_id,
+        entity_state: ID {
+            id: entity_state_id.into(),
+        },
     };
 
     let response = client

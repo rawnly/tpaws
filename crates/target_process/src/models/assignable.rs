@@ -63,3 +63,16 @@ pub struct EntityState {
     pub id: usize,
     pub name: String,
 }
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct ID {
+    pub id: usize,
+}
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct UpdateEntityStatePayload {
+    pub id: usize,
+    pub entity_state: ID,
+}

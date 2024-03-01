@@ -1,18 +1,54 @@
-use color_eyre::{eyre::OptionExt, Result};
+use color_eyre::{
+    eyre::{eyre, OptionExt},
+    Result,
+};
+use commands::{
+    aws::{PullRequest, PullRequestStatus, AWS},
+    git,
+};
 use regex::Regex;
-use target_process::models::assignable::Assignable;
 
-#[deprecated]
-pub(crate) fn branch_name(assignable: Assignable) -> String {
-    let mut name = assignable.name.clone().to_lowercase();
-    name.retain(|x| {
-        ![
-            '(', ')', '[', ']', '{', '}', ',', '\"', '/', '.', ';', ':', '\'', '-', '_',
-        ]
-        .contains(&x)
-    });
+pub(crate) fn build_pr_link(region: String, repository: String, id: String) -> String {
+    format!("https://{region}.console.aws.amazon.com/codesuite/codecommit/repositories/{repository}/pull-requests/{id}/details")
+}
 
-    format!("{}_{}", assignable.id, name.replace(' ', "_"))
+pub(crate) async fn get_pr_id(aws: &AWS, id: Option<String>) -> Result<PullRequest> {
+    let branch = git::current_branch().await?;
+    let repository = get_repository().await?;
+
+    let all_prs = aws
+        .list_pull_requests(repository, PullRequestStatus::Open)
+        .await?;
+
+    for pr_id in all_prs.pull_request_ids {
+        let current_pr = aws.get_pull_request(pr_id).await?;
+
+        if let Some(id) = id.clone() {
+            if current_pr.pull_request.id == id {
+                return Ok(current_pr.pull_request);
+            }
+        }
+
+        for target in current_pr.clone().pull_request.targets {
+            if target.source.replace("refs/heads/", "") != branch {
+                continue;
+            }
+
+            return Ok(current_pr.pull_request);
+        }
+    }
+
+    Err(eyre!("unable to extract id"))
+}
+
+pub(crate) async fn get_repository() -> Result<String> {
+    let remote = git::get_remote_url("origin").await?;
+
+    remote
+        .split('/')
+        .last()
+        .map(|s| s.to_string())
+        .ok_or_eyre("unable to extract repository from origin")
 }
 
 pub(crate) fn branch_to_title(branch: String) -> String {

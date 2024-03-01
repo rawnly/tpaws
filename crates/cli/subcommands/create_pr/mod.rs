@@ -1,6 +1,6 @@
 use color_eyre::Result;
 use colored::*;
-use commands::{aws, git};
+use commands::{aws::AWS, git};
 use inquire::{Confirm, Select};
 use spinners::{Spinner, Spinners};
 
@@ -8,28 +8,13 @@ use crate::{cli, costants, utils};
 
 pub async fn create_pr(
     args: cli::Args,
+    aws: &AWS,
     title: Option<String>,
     description: Option<String>,
     base: String,
-    profile: String,
     no_slack: bool,
 ) -> Result<()> {
-    let mut auth_spinner = Spinner::new(Spinners::Dots, "Checking credentials...".into());
-    let is_authenticated = aws::get_caller_identity().await.is_ok();
-
-    if !is_authenticated {
-        auth_spinner.stop_and_persist("🔐", "Authentication needed!".into());
-
-        let mut s = Spinner::new(Spinners::Dots, "Performing SSO Authentication".into());
-
-        aws::login(&profile).await?;
-
-        s.stop_and_persist("✅", "Authenticated!".into());
-    } else {
-        auth_spinner.stop_and_persist("✅", "Authenticated!".into());
-    }
-
-    let raw_region = aws::get_region().await?;
+    let raw_region = aws.get_region().await?;
     let region = raw_region.trim().to_string();
 
     let raw_branch = git::current_branch().await?;
@@ -79,17 +64,17 @@ pub async fn create_pr(
 
     let mut pr_spinner = Spinner::new(Spinners::Dots, "Creating PR ...".into());
 
-    let pr = aws::create_pull_request(
-        &repository,
-        &title,
-        &format!("See: {}", tp_link),
-        &branch,
-        &base_branch,
-        &profile,
-    )
-    .await?;
+    let pr = aws
+        .create_pull_request(
+            repository.clone(),
+            title.clone(),
+            format!("See: {}", tp_link),
+            branch,
+            base_branch,
+        )
+        .await?;
 
-    let pr_link = format!("https://{region}.console.aws.amazon.com/codesuite/codecommit/repositories/{repository}/pull-requests/{pr_id}/details", pr_id = pr.pull_request.pull_request_id);
+    let pr_link = format!("https://{region}.console.aws.amazon.com/codesuite/codecommit/repositories/{repository}/pull-requests/{pr_id}/details", pr_id = pr.pull_request.id);
 
     pr_spinner.stop_and_persist("🔗", format!("PR Available at: {pr_link}"));
 
@@ -105,13 +90,13 @@ pub async fn create_pr(
 
         let mut slack_spinner = Spinner::new(Spinners::Dots, "Sending slack message".into());
 
-        let pr_link = format!("https://{region}.console.aws.amazon.com/codesuite/codecommit/repositories/{repository}/pull-requests/{pr_id}/details", pr_id = pr.pull_request.pull_request_id);
+        let pr_link = format!("https://{region}.console.aws.amazon.com/codesuite/codecommit/repositories/{repository}/pull-requests/{pr_id}/details", pr_id = pr.pull_request.id);
 
         slack::send_message(
             format!(
                 "<@{slack_user_id}> opened a PR to: <@{reviewer}> - `{repository}` <{pr_link}|{pr_id}: {title}>",
                 reviewer = user.id,
-                pr_id = pr.pull_request.pull_request_id,
+                pr_id = pr.pull_request.id,
             ),
             pr_link,
             tp_link
@@ -121,7 +106,6 @@ pub async fn create_pr(
     }
     Ok(())
 }
-
 
 fn select_user() -> Result<costants::User> {
     let name = Select::new(

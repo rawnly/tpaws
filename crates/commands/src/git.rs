@@ -6,9 +6,11 @@ pub async fn current_branch() -> Result<String> {
         .output()
         .await?
         .stdout;
-    let branch = String::from_utf8(bytes)?;
 
-    Ok(branch)
+    let branch = String::from_utf8(bytes)?;
+    let branch = branch.trim();
+
+    Ok(branch.to_string())
 }
 
 pub async fn get_remote_url(remote: &str) -> Result<String> {
@@ -17,8 +19,27 @@ pub async fn get_remote_url(remote: &str) -> Result<String> {
         .await?
         .stdout;
     let branch = String::from_utf8(bytes)?;
+    let branch = branch.trim();
 
-    Ok(branch)
+    Ok(branch.to_string())
+}
+
+pub async fn delete_remote_branch(remote: &str, branch: String) -> Result<()> {
+    let branch = format!(":{branch}");
+
+    command!("git", "push", remote, &branch).output().await?;
+
+    Ok(())
+}
+
+pub async fn fetch(prune: bool) -> Result<()> {
+    if prune {
+        command!("git", "fetch", "--prune").output().await?;
+    } else {
+        command!("git", "fetch").output().await?;
+    }
+
+    Ok(())
 }
 
 pub mod flow {

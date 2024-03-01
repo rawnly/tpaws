@@ -1,10 +1,14 @@
 use clap::Parser;
 use color_eyre::{eyre::OptionExt, Result};
 use colored::*;
-use commands::{git, spawn_command};
+use commands::{
+    aws::{PullRequest, PullRequestStatus, AWS},
+    git, spawn_command,
+};
 use human_panic::setup_panic;
 use mdka::from_html;
-use target_process::models::assignable::Assignable;
+use spinners::Spinner;
+use target_process::models::{assignable::Assignable, EntityStates};
 
 mod cli;
 mod costants;
@@ -36,22 +40,177 @@ async fn main() -> Result<()> {
     let create_pr_args = args.clone();
 
     match args.command {
-        cli::Commands::CreatePR {
-            title,
-            description,
-            base,
+        cli::Commands::PullRequest {
+            subcommands,
             profile,
-            no_slack,
+            ..
         } => {
-            subcommands::create_pr::create_pr(
-                create_pr_args,
-                title,
-                description,
-                base,
-                profile,
-                no_slack,
-            )
-            .await?;
+            let aws = AWS::new(profile);
+            aws.refresh_auth_if_needed().await?;
+
+            let region = aws.get_region().await?;
+
+            match subcommands {
+                cli::PullRequestCommands::Create {
+                    title,
+                    description,
+                    base,
+                    no_slack,
+                } => {
+                    subcommands::create_pr::create_pr(
+                        create_pr_args,
+                        &aws,
+                        title,
+                        description,
+                        base,
+                        no_slack,
+                    )
+                    .await?
+                }
+                cli::PullRequestCommands::View { id, web } => {
+                    let branch = git::current_branch().await?;
+                    let repository = utils::get_repository().await?;
+
+                    let all_prs = aws
+                        .list_pull_requests(repository.clone(), PullRequestStatus::Open)
+                        .await?;
+
+                    for pr_id in all_prs.pull_request_ids {
+                        let current_pr = aws.get_pull_request(pr_id).await?;
+                        let link = utils::build_pr_link(
+                            region.clone(),
+                            repository.clone(),
+                            current_pr.clone().pull_request.id.to_string(),
+                        );
+
+                        for target in current_pr.pull_request.targets {
+                            if target.source.replace("refs/heads/", "") != branch {
+                                continue;
+                            }
+
+                            if web {
+                                println!(
+                                    "Opening \"{title}\"...",
+                                    title = current_pr.pull_request.title.yellow()
+                                );
+                                spawn_command!("open", &link)?;
+                            } else {
+                                println!(
+                                    "[{id}] {title} - ({status})",
+                                    id = current_pr.pull_request.id,
+                                    title = current_pr.pull_request.title,
+                                    status = current_pr.pull_request.status
+                                );
+
+                                println!();
+                                println!("{}", link.blue());
+                            }
+
+                            break;
+                        }
+                    }
+                }
+                cli::PullRequestCommands::Merge { id } => {
+                    let branch = git::current_branch().await?;
+                    let pr = utils::get_pr_id(&aws, id).await?;
+                    let repository = utils::get_repository().await?;
+                    let link = utils::build_pr_link(region, repository.clone(), pr.id.to_string());
+
+                    println!("Found 1 matching PR");
+                    println!();
+                    println!("[{}] {}", pr.id.yellow(), pr.title.yellow());
+                    println!("{}", pr.description.yellow());
+                    println!("{}", link.blue());
+                    println!();
+
+                    for target in pr.targets {
+                        println!(
+                            "From: {}",
+                            target.source.replace("refs/heads/", "").magenta()
+                        );
+                        println!(
+                            "To:   {}",
+                            target.destination.replace("refs/heads/", "").magenta()
+                        );
+                        println!();
+                    }
+
+                    if !inquire::Confirm::new("Are the info above correct?")
+                        .with_default(false)
+                        .prompt()?
+                    {
+                        println!("operation aborted.");
+                        return Ok(());
+                    }
+
+                    // TODO: Refactor once we have settings
+                    let name = inquire::Text::new("Author Name")
+                        .with_default("Federico Vitale")
+                        .prompt()?;
+
+                    // TODO: Refactor once we have settings
+                    let email = inquire::Text::new("Author Email")
+                        .with_default("federico.vitale@satispay.com")
+                        .prompt()?;
+
+                    let commit = inquire::Text::new("Commit Message")
+                        .with_default(&pr.description)
+                        .prompt()?;
+
+                    if inquire::Confirm::new("Confirm?")
+                        .with_default(false)
+                        .prompt()?
+                    {
+                        let mut merge_spinner = Spinner::new(
+                            spinners::Spinners::Dots,
+                            format!("Squashing {}...", pr.id),
+                        );
+
+                        let updated_pr = aws
+                            .merge_pr_by_squash(pr.id, repository, commit, name, email)
+                            .await?;
+
+                        merge_spinner.stop_with_symbol("✅");
+
+                        if inquire::Confirm::new("Delete remote branch?")
+                            .with_default(true)
+                            .prompt()?
+                        {
+                            let mut branch_spinner =
+                                Spinner::new(spinners::Spinners::Dots, "Deleting branch...".into());
+                            git::delete_remote_branch("origin", branch.clone()).await?;
+                            git::fetch(true).await?;
+                            branch_spinner.stop_with_symbol("✅");
+                        }
+
+                        let mut spinner = Spinner::new(
+                            spinners::Spinners::Dots,
+                            "Updating ticket status..".to_string(),
+                        );
+
+                        if let Some(assignable_id) = utils::get_ticket_id_from_branch(branch) {
+                            // TODO: remove this api call and parse assignable_id to usize
+                            let ticket = target_process::get_assignable(&assignable_id).await?;
+
+                            target_process::update_entity_state(ticket.id, EntityStates::InStaging)
+                                .await?;
+
+                            spinner.stop_with_symbol("✅");
+                        } else {
+                            spinner.stop_and_persist(
+                                "✅",
+                                "Failed to update ticket status".to_string(),
+                            );
+                        }
+
+                        dbg!(&updated_pr);
+
+                        return Ok(());
+                    }
+
+                    println!("operation aborted.");
+                }
+            }
         }
         cli::Commands::Ticket { subcommands } => match subcommands {
             cli::TicketCommands::Start {
@@ -68,6 +227,8 @@ async fn main() -> Result<()> {
                     let user_id = me.id;
                     let assignable_id = assignable.id;
                     target_process::assign_task(assignable_id, user_id).await?;
+                    target_process::update_entity_state(assignable_id, EntityStates::InProgress)
+                        .await?;
                 }
 
                 if !no_git {
@@ -77,7 +238,22 @@ async fn main() -> Result<()> {
 
                 println!();
             }
-            cli::TicketCommands::Get { id_or_url, json } => {
+            cli::TicketCommands::Finish { id_or_url } => {
+                let id = if let Some(id_or_url) = id_or_url {
+                    utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url)
+                } else {
+                    let branch = git::current_branch().await?;
+
+                    utils::get_ticket_id_from_branch(branch)
+                        .ok_or_eyre("Unable to extract userStory ID")?
+                };
+
+                let assignable = target_process::get_assignable(&id).await?;
+
+                let branch = assignable.get_branch();
+                commands::git::flow::feature::finish(&branch).await?;
+            }
+            cli::TicketCommands::Get { id_or_url } => {
                 let id = if let Some(id_or_url) = id_or_url {
                     utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url)
                 } else {

@@ -272,6 +272,8 @@ dependencies = [
  "color-eyre",
  "serde",
  "serde_json",
+ "spinners",
+ "strum 0.26.1",
  "tokio",
 ]
 
