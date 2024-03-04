@@ -1,4 +1,4 @@
-use color_eyre::Result;
+use color_eyre::{eyre::OptionExt, Result};
 use colored::*;
 use commands::{aws::AWS, git};
 use inquire::{Confirm, Select};
@@ -14,7 +14,7 @@ pub async fn create(
     base: String,
     no_slack: bool,
 ) -> Result<()> {
-    let raw_region = aws.get_region().await?;
+    let raw_region = aws.clone().region.ok_or_eyre("Missing AWS Region")?;
     let region = raw_region.trim().to_string();
 
     let raw_branch = git::current_branch().await?;

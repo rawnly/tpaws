@@ -51,11 +51,11 @@ async fn main() -> Result<()> {
             let branch = git::current_branch().await?;
             let repository = utils::get_repository().await?;
 
-            let aws = AWS::new(profile);
-            aws.refresh_auth_if_needed().await?;
-
+            let mut aws = AWS::new(profile);
             let region = aws.get_region().await?;
+
             let ctx = GlobalContext::new(aws, branch, repository);
+            ctx.aws.refresh_auth_if_needed().await?;
 
             match subcommands {
                 cli::PullRequestCommands::Create {
@@ -66,7 +66,7 @@ async fn main() -> Result<()> {
                 } => {
                     subcommands::pull_request::create(
                         create_pr_args,
-                        &aws,
+                        &ctx.aws,
                         title,
                         description,
                         base,
@@ -79,7 +79,7 @@ async fn main() -> Result<()> {
                 }
                 cli::PullRequestCommands::Merge { id } => {
                     let branch = git::current_branch().await?;
-                    let pr = utils::get_pr_id(&aws, id).await?;
+                    let pr = utils::get_pr_id(&ctx.aws, id).await?;
                     let repository = utils::get_repository().await?;
                     let link = utils::build_pr_link(region, repository.clone(), pr.id.to_string());
 
@@ -133,7 +133,8 @@ async fn main() -> Result<()> {
                             format!("Squashing {}...", pr.id),
                         );
 
-                        let updated_pr = aws
+                        let updated_pr = ctx
+                            .aws
                             .merge_pr_by_squash(pr.id, repository, commit, name, email)
                             .await?;
 
@@ -237,8 +238,14 @@ async fn main() -> Result<()> {
                     let user_id = me.id;
                     let assignable_id = assignable.id;
                     target_process::assign_task(assignable_id, user_id).await?;
-                    target_process::update_entity_state(assignable_id, EntityStates::InProgress)
+
+                    if assignable.is_user_story() {
+                        target_process::update_entity_state(
+                            assignable_id,
+                            EntityStates::InProgress,
+                        )
                         .await?;
+                    }
                 }
 
                 if !no_git {

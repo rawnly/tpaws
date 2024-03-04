@@ -1,6 +1,7 @@
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Assignable {
+    /// UserStory - Bug
     pub resource_type: String,
     pub id: usize,
     pub name: String,
@@ -11,6 +12,7 @@ pub struct Assignable {
     pub creator: GeneralUser,
     pub priority: Priority,
     pub team: Team,
+    pub entity_type: EntityType,
 }
 
 impl Assignable {
@@ -28,6 +30,14 @@ impl Assignable {
         });
 
         format!("{}_{}", self.id, name.replace(' ', "_"))
+    }
+
+    pub fn is_bug(&self) -> bool {
+        self.entity_type.name.to_lowercase() == "bug"
+    }
+
+    pub fn is_user_story(&self) -> bool {
+        self.entity_type.name.to_lowercase() == "userstory"
     }
 }
 
@@ -75,4 +85,12 @@ pub struct ID {
 pub struct UpdateEntityStatePayload {
     pub id: usize,
     pub entity_state: ID,
+}
+
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct EntityType {
+    pub id: usize,
+    pub resource_type: String,
+    pub name: String,
 }
