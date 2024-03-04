@@ -263,7 +263,11 @@ async fn main() -> Result<()> {
                 let branch = assignable.get_branch();
                 commands::git::flow::feature::finish(&branch).await?;
             }
-            cli::TicketCommands::View { id_or_url, web } => {
+            cli::TicketCommands::View {
+                id_or_url,
+                json,
+                web,
+            } => {
                 let id = if let Some(id_or_url) = id_or_url {
                     utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url)
                 } else {
@@ -277,6 +281,13 @@ async fn main() -> Result<()> {
 
                 if web {
                     spawn_command!("open", assignable.get_link())?;
+                    return Ok(());
+                }
+
+                if json {
+                    let json_string = serde_json::to_string_pretty(&assignable)?;
+                    println!("{}", json_string);
+
                     return Ok(());
                 }
 

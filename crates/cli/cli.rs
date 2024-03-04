@@ -21,6 +21,10 @@ pub enum TicketCommands {
         /// Opens userStory in the browser
         #[arg(long, short)]
         web: bool,
+
+        /// Opens userStory in the browser
+        #[arg(long)]
+        json: bool,
     },
     /// Run `git flow start` and update status/assigned developer
     Start {
