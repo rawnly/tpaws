@@ -32,6 +32,14 @@ pub async fn delete_remote_branch(remote: &str, branch: String) -> Result<()> {
     Ok(())
 }
 
+pub async fn config(key: String) -> Result<String> {
+    let stdout = command!("git", "config", &key).output().await?.stdout;
+    let out = String::from_utf8(stdout)?;
+    let out = out.trim();
+
+    Ok(out.to_string())
+}
+
 pub async fn fetch(prune: bool) -> Result<()> {
     if prune {
         command!("git", "fetch", "--prune").output().await?;

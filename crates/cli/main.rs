@@ -1,10 +1,7 @@
 use clap::Parser;
 use color_eyre::{eyre::OptionExt, Result};
 use colored::*;
-use commands::{
-    aws::{PullRequestStatus, AWS},
-    git, spawn_command,
-};
+use commands::{aws::AWS, git, spawn_command};
 use human_panic::setup_panic;
 use mdka::from_html;
 use spinners::Spinner;
@@ -77,11 +74,25 @@ async fn main() -> Result<()> {
                 cli::PullRequestCommands::View { id, web } => {
                     subcommands::pull_request::view(ctx, id, web).await?
                 }
-                cli::PullRequestCommands::Merge { id } => {
+                cli::PullRequestCommands::Merge {
+                    id,
+                    author,
+                    email: author_email,
+                    commit_message,
+                    ..
+                } => {
                     let branch = git::current_branch().await?;
                     let pr = utils::get_pr_id(&ctx.aws, id).await?;
                     let repository = utils::get_repository().await?;
                     let link = utils::build_pr_link(region, repository.clone(), pr.id.to_string());
+
+                    let email = git::config("user.email".to_string()).await.unwrap_or(
+                        author_email.unwrap_or("federico.vitale@satispay.com".to_string()),
+                    );
+
+                    let name = git::config("user.name".to_string())
+                        .await
+                        .unwrap_or(author.unwrap_or("Federico Vitale".to_string()));
 
                     println!("Found 1 matching PR");
                     println!();
@@ -111,18 +122,30 @@ async fn main() -> Result<()> {
                     }
 
                     // TODO: Refactor once we have settings
-                    let name = inquire::Text::new("Author Name")
-                        .with_default("Federico Vitale")
-                        .prompt()?;
+                    let name = if args.quiet {
+                        name
+                    } else {
+                        inquire::Text::new("Author Name")
+                            .with_default(&name)
+                            .prompt()?
+                    };
 
                     // TODO: Refactor once we have settings
-                    let email = inquire::Text::new("Author Email")
-                        .with_default("federico.vitale@satispay.com")
-                        .prompt()?;
+                    let email = if args.quiet {
+                        email
+                    } else {
+                        inquire::Text::new("Author Email")
+                            .with_default(&email)
+                            .prompt()?
+                    };
 
-                    let commit = inquire::Text::new("Commit Message")
-                        .with_default(&pr.description)
-                        .prompt()?;
+                    let commit = if args.quiet {
+                        commit_message.unwrap_or(pr.description)
+                    } else {
+                        inquire::Text::new("Commit Message")
+                            .with_default(&commit_message.unwrap_or(pr.description))
+                            .prompt()?
+                    };
 
                     if inquire::Confirm::new("Confirm?")
                         .with_default(false)
@@ -160,10 +183,17 @@ async fn main() -> Result<()> {
                             // TODO: remove this api call and parse assignable_id to usize
                             let ticket = target_process::get_assignable(&assignable_id).await?;
 
-                            target_process::update_entity_state(ticket.id, EntityStates::InStaging)
+                            if ticket.is_user_story() {
+                                target_process::update_entity_state(
+                                    ticket.id,
+                                    EntityStates::InStaging,
+                                )
                                 .await?;
 
-                            spinner.stop_with_symbol("✅");
+                                spinner.stop_with_symbol("✅");
+                            } else {
+                                spinner.stop_and_persist("⏩", "Skipped".to_string());
+                            }
                         } else {
                             spinner.stop_and_persist(
                                 "✅",

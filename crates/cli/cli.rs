@@ -7,8 +7,13 @@ pub struct Args {
     #[command(subcommand)]
     pub command: Commands,
 
+    /// do not perform any action
     #[arg(long, global = true)]
     pub dry_run: bool,
+
+    /// do not print any output/spinner
+    #[arg(long, global = true)]
+    pub quiet: bool,
 }
 
 #[derive(Subcommand, strum::Display, Debug, Clone)]
@@ -45,6 +50,7 @@ pub enum TicketCommands {
     },
     /// Run `git flow finish`
     Finish { id_or_url: Option<String> },
+
     /// Print userStory link
     Link { id_or_url: Option<String> },
 }
@@ -71,24 +77,42 @@ pub enum PullRequestCommands {
     },
     /// Retrive a PR
     View {
+        /// PR id
         id: Option<String>,
 
+        /// open the PR in the browser
         #[arg(long, short)]
         web: bool,
     },
     /// Squash merge a PR
-    Merge { id: Option<String> },
+    Merge {
+        /// do not prompt for confirmation
+        #[arg(long, short)]
+        use_defaults: bool,
+
+        #[arg(long, short)]
+        commit_message: Option<String>,
+
+        #[arg(long)]
+        author: Option<String>,
+
+        #[arg(long)]
+        email: Option<String>,
+
+        id: Option<String>,
+    },
 }
 
 #[derive(Subcommand, strum::Display, Debug, Clone)]
 pub enum Commands {
     /// Manage target process
+    #[clap(visible_alias = "us")]
     Ticket {
         #[command(subcommand)]
         subcommands: TicketCommands,
     },
     /// Craete / Manage and List pull requests
-    #[clap(alias = "pr")]
+    #[clap(visible_alias = "pr")]
     PullRequest {
         #[command(subcommand)]
         subcommands: PullRequestCommands,
