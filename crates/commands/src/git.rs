@@ -52,19 +52,26 @@ pub async fn fetch(prune: bool) -> Result<()> {
 
 pub mod flow {
     pub mod feature {
-        use crate::spawn_command;
+        use crate::command;
 
         use color_eyre::Result;
 
-        pub async fn start(name: &str) -> Result<()> {
-            spawn_command!("git", "flow", "feature", "start", name)?;
+        pub async fn start(name: &str) -> Result<String> {
+            let stdout = command!("fit", "flow", "feature", "start", name)
+                .output()
+                .await?
+                .stdout;
 
-            Ok(())
+            Ok(String::from_utf8(stdout)?.trim().to_string())
         }
 
-        pub async fn finish(name: &str) -> Result<()> {
-            spawn_command!("git", "flow", "feature", "finish", name)?;
-            Ok(())
+        pub async fn finish(name: &str) -> Result<String> {
+            let stdout = command!("fit", "flow", "feature", "finish", name)
+                .output()
+                .await?
+                .stdout;
+
+            Ok(String::from_utf8(stdout)?.trim().to_string())
         }
     }
 }

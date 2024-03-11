@@ -1,8 +1,8 @@
 use color_eyre::Result;
 use models::{
-    assignable::{Assignable, UpdateEntityStatePayload, ID},
     user::CurrentUser,
-    EntityStates,
+    v1::assignable::{Assignable, UpdateEntityStatePayload, ID},
+    v2, EntityStates,
 };
 use reqwest::header::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -14,6 +14,12 @@ pub const BASE_URL: &str = "https://satispay.tpondemand.com/api";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "PascalCase")]
 struct ResponseListV1<T> {
+    pub items: Vec<T>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct ResponseListV2<T> {
     pub items: Vec<T>,
 }
 
@@ -139,13 +145,22 @@ pub async fn get_me() -> Result<CurrentUser> {
     fetch("/v1/Users/loggeduser".into(), []).await
 }
 
-pub async fn get_my_tasks(current_user_id: usize) -> Result<Vec<Assignable>> {
-    let filter = Param::Filter(format!("(Owner.Id eq {current_user_id})"));
+pub async fn get_current_sprint_open_tasks() -> Result<Vec<Assignable>> {
+    let where_filter = Param::Where(
+        r#"(EntityState.IsInitial = true) and ( EntityType.Name = 'Bug' or (TeamIteration.IsCurrent=true or TeamIteration.IsPrevious = true))and(Project.Name='[IT-F] Business Dashboard')"#.into(),
+    );
 
-    let api_response: ResponseListV1<Assignable> =
-        fetch("/v1/Assignables".into(), vec![filter]).await?;
+    let select_filter =
+        Param::Select("{id,name,description,resourceType,entityState,entityType}".into());
 
-    Ok(api_response.items)
+    let api_response: ResponseListV2<v2::assignable::Assignable> =
+        fetch("/v2/assignables".into(), vec![where_filter, select_filter]).await?;
+
+    Ok(api_response
+        .items
+        .into_iter()
+        .map(Assignable::from)
+        .collect())
 }
 
 #[derive(Serialize, Debug)]

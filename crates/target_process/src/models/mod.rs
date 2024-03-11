@@ -1,5 +1,8 @@
 use color_eyre::eyre::eyre;
 
+pub mod v1;
+pub mod v2;
+
 pub mod assignable;
 pub mod user;
 

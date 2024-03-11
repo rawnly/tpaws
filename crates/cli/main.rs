@@ -218,7 +218,10 @@ async fn main() -> Result<()> {
                 no_assign,
             } => {
                 let me = target_process::get_me().await?;
-                let all_my_tickets = target_process::get_my_tasks(me.id).await?;
+                let all_my_tickets = target_process::get_current_sprint_open_tasks().await?;
+
+                print_dbg!(&all_my_tickets);
+
                 let list: Vec<String> = all_my_tickets
                     .iter()
                     .filter_map(|t| {
@@ -243,7 +246,8 @@ async fn main() -> Result<()> {
                             return Ok(());
                         }
 
-                        let title = inquire::Select::new("Choose a ticket", list).prompt()?;
+                        let title = inquire::Select::new("Pick a user story from the list:", list)
+                            .prompt()?;
 
                         let id = all_my_tickets
                             .iter()
@@ -280,7 +284,9 @@ async fn main() -> Result<()> {
 
                 if !no_git {
                     let branch = branch.unwrap_or(assignable.get_branch());
-                    commands::git::flow::feature::start(&branch).await?;
+                    let output = commands::git::flow::feature::start(&branch).await?;
+
+                    println!("git flow initialized");
                 }
 
                 println!();
