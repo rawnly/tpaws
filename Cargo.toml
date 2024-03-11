@@ -12,7 +12,12 @@ name = "satis"
 path = "crates/cli/main.rs"
 
 [workspace]
-members = ["crates/target_process", "crates/commands", "crates/slack"]
+members = [
+  "crates/target_process",
+  "crates/config",
+  "crates/commands",
+  "crates/slack",
+]
 
 [profile.release]
 debug = 1
