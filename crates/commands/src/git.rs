@@ -57,7 +57,7 @@ pub mod flow {
         use color_eyre::Result;
 
         pub async fn start(name: &str) -> Result<String> {
-            let stdout = command!("fit", "flow", "feature", "start", name)
+            let stdout = command!("git", "flow", "feature", "start", name)
                 .output()
                 .await?
                 .stdout;
@@ -66,7 +66,7 @@ pub mod flow {
         }
 
         pub async fn finish(name: &str) -> Result<String> {
-            let stdout = command!("fit", "flow", "feature", "finish", name)
+            let stdout = command!("git", "flow", "feature", "finish", name)
                 .output()
                 .await?
                 .stdout;
