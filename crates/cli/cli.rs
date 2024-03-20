@@ -104,7 +104,18 @@ pub enum PullRequestCommands {
 }
 
 #[derive(Subcommand, strum::Display, Debug, Clone)]
+pub enum ConfigCommands {
+    Reset,
+}
+
+#[derive(Subcommand, strum::Display, Debug, Clone)]
 pub enum Commands {
+    #[clap(visible_alias = "cfg")]
+    Config {
+        #[command(subcommand)]
+        subcommands: ConfigCommands,
+    },
+
     /// Manage target process
     #[clap(visible_alias = "us")]
     Ticket {

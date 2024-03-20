@@ -50,6 +50,7 @@ thiserror = "1.0.57"
 tokio = { version = "1.36.0", features = ["full"] }
 slack = { path = "./crates/slack" }
 commands = { path = "./crates/commands" }
+config = { path = "./crates/config" }
 target_process = { path = "./crates/target_process" }
 regex = "1.10.3"
 strum = { version = "0.26.1", features = ["derive"] }

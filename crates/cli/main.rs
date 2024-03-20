@@ -2,7 +2,9 @@ use clap::Parser;
 use color_eyre::{eyre::OptionExt, Result};
 use colored::*;
 use commands::{aws::AWS, git, spawn_command};
+use config::Config;
 use human_panic::setup_panic;
+use inquire::Text;
 use mdka::from_html;
 use spinners::Spinner;
 use target_process::models::EntityStates;
@@ -37,6 +39,15 @@ async fn main() -> Result<()> {
 
     let args = cli::Args::parse();
 
+    if Config::is_first_run()? {
+        println!("Please configure the CLI before continue");
+        println!();
+
+        subcommands::config::reset().await?;
+    }
+
+    let config = Config::read().await?;
+
     let create_pr_args = args.clone();
 
     match args.command {
@@ -51,7 +62,7 @@ async fn main() -> Result<()> {
             let mut aws = AWS::new(profile);
             let region = aws.get_region().await?;
 
-            let ctx = GlobalContext::new(aws, branch, repository);
+            let ctx = GlobalContext::new(aws, config, branch, repository);
             ctx.aws.refresh_auth_if_needed().await?;
 
             match subcommands {
@@ -86,13 +97,13 @@ async fn main() -> Result<()> {
                     let repository = utils::get_repository().await?;
                     let link = utils::build_pr_link(region, repository.clone(), pr.id.to_string());
 
-                    let email = git::config("user.email".to_string()).await.unwrap_or(
-                        author_email.unwrap_or("federico.vitale@satispay.com".to_string()),
-                    );
+                    let email = git::config("user.email".to_string())
+                        .await
+                        .unwrap_or(author_email.unwrap_or(ctx.config.pr_email));
 
                     let name = git::config("user.name".to_string())
                         .await
-                        .unwrap_or(author.unwrap_or("Federico Vitale".to_string()));
+                        .unwrap_or(author.unwrap_or(ctx.config.pr_name));
 
                     println!("Found 1 matching PR");
                     println!();
@@ -217,7 +228,6 @@ async fn main() -> Result<()> {
                 no_git,
                 no_assign,
             } => {
-                let me = target_process::get_me().await?;
                 let all_my_tickets = target_process::get_current_sprint_open_tasks().await?;
 
                 print_dbg!(&all_my_tickets);
@@ -266,10 +276,9 @@ async fn main() -> Result<()> {
 
                 let id = utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url);
                 let assignable = target_process::get_assignable(&id).await?;
-                let me = target_process::get_me().await?;
 
                 if !no_assign {
-                    let user_id = me.id;
+                    let user_id = config.user_id;
                     let assignable_id = assignable.id;
                     target_process::assign_task(assignable_id, user_id).await?;
 
@@ -284,12 +293,8 @@ async fn main() -> Result<()> {
 
                 if !no_git {
                     let branch = branch.unwrap_or(assignable.get_branch());
-                    let output = commands::git::flow::feature::start(&branch).await?;
-
-                    println!("git flow initialized");
+                    commands::git::flow::feature::start(&branch).await?;
                 }
-
-                println!();
             }
             cli::TicketCommands::Finish { id_or_url } => {
                 let id = if let Some(id_or_url) = id_or_url {
@@ -359,6 +364,9 @@ async fn main() -> Result<()> {
 
                 println!("{}", assignable.get_link());
             }
+        },
+        cli::Commands::Config { subcommands } => match subcommands {
+            cli::ConfigCommands::Reset => subcommands::config::reset().await?,
         },
     }
 

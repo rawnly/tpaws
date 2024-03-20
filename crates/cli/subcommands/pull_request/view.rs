@@ -12,6 +12,7 @@ pub async fn view(ctx: GlobalContext, id: Option<String>, web: bool) -> Result<(
         aws,
         branch,
         repository,
+        ..
     } = ctx;
 
     let mut pull_request: Option<PullRequest> = None;
