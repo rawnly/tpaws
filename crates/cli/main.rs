@@ -70,7 +70,7 @@ async fn main() -> Result<()> {
                     title,
                     description,
                     base,
-                    no_slack,
+                    slack,
                 } => {
                     subcommands::pull_request::create(
                         create_pr_args,
@@ -78,7 +78,7 @@ async fn main() -> Result<()> {
                         title,
                         description,
                         base,
-                        no_slack,
+                        slack,
                     )
                     .await?
                 }

@@ -12,7 +12,7 @@ pub async fn create(
     title: Option<String>,
     description: Option<String>,
     base: String,
-    no_slack: bool,
+    slack: bool,
 ) -> Result<()> {
     let raw_region = aws.clone().region.ok_or_eyre("Missing AWS Region")?;
     let region = raw_region.trim().to_string();
@@ -78,7 +78,7 @@ pub async fn create(
 
     pr_spinner.stop_and_persist("🔗", format!("PR Available at: {pr_link}"));
 
-    if no_slack {
+    if !slack {
         return Ok(());
     }
 
@@ -104,6 +104,7 @@ pub async fn create(
 
         slack_spinner.stop_with_symbol("✅");
     }
+
     Ok(())
 }
 

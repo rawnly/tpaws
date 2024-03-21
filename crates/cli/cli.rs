@@ -61,7 +61,7 @@ pub enum PullRequestCommands {
     Create {
         /// Do not notify slack channel
         #[arg(long)]
-        no_slack: bool,
+        slack: bool,
 
         /// PR title
         #[arg(long, short)]
