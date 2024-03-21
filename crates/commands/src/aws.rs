@@ -214,34 +214,55 @@ impl AWS {
     pub async fn list_my_pull_requests(
         &self,
         repository: String,
-        pull_request_status: PullRequestStatus,
+        pull_request_status: Option<PullRequestStatus>,
         author_arn: String,
     ) -> Result<PullRequestsList> {
-        let status = &pull_request_status.to_string();
+        let status = &pull_request_status.map(|s| s.to_string());
+        let stdout: Vec<u8>;
 
-        let stdout = command!(
-            "aws",
-            "codecommit",
-            "list-pull-requests",
-            "--repository",
-            &repository,
-            "--output",
-            "json",
-            "--pull-request-status",
-            status,
-            "--author-arn",
-            &author_arn,
-            "--color",
-            "off",
-            "--profile",
-            &self.profile
-        )
-        .output()
-        .await?
-        .stdout;
+        if let Some(status) = status {
+            stdout = command!(
+                "aws",
+                "codecommit",
+                "list-pull-requests",
+                "--repository",
+                &repository,
+                "--output",
+                "json",
+                "--pull-request-status",
+                status,
+                "--author-arn",
+                &author_arn,
+                "--color",
+                "off",
+                "--profile",
+                &self.profile
+            )
+            .output()
+            .await?
+            .stdout;
+        } else {
+            stdout = command!(
+                "aws",
+                "codecommit",
+                "list-pull-requests",
+                "--repository",
+                &repository,
+                "--output",
+                "json",
+                "--author-arn",
+                &author_arn,
+                "--color",
+                "off",
+                "--profile",
+                &self.profile
+            )
+            .output()
+            .await?
+            .stdout;
+        }
 
         let raw_output = String::from_utf8(stdout)?;
-
         Ok(serde_json::from_str(&raw_output)?)
     }
 

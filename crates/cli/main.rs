@@ -66,6 +66,9 @@ async fn main() -> Result<()> {
             ctx.aws.refresh_auth_if_needed().await?;
 
             match subcommands {
+                cli::PullRequestCommands::List { interactive } => {
+                    subcommands::pull_request::list(ctx, interactive).await?
+                }
                 cli::PullRequestCommands::Create {
                     title,
                     description,

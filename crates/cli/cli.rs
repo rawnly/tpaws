@@ -101,6 +101,11 @@ pub enum PullRequestCommands {
 
         id: Option<String>,
     },
+
+    List {
+        #[arg(long)]
+        interactive: bool,
+    },
 }
 
 #[derive(Subcommand, strum::Display, Debug, Clone)]
