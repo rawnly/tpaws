@@ -4,7 +4,7 @@ use color_eyre::Result;
 use commands::aws::PullRequestsList;
 use tokio::task::JoinSet;
 
-use crate::context::GlobalContext;
+use crate::{context::GlobalContext, print_dbg};
 
 pub async fn list(ctx: GlobalContext, interactive: bool) -> Result<()> {
     if interactive {
@@ -17,6 +17,8 @@ pub async fn list(ctx: GlobalContext, interactive: bool) -> Result<()> {
         .aws
         .list_my_pull_requests(ctx.repository.clone(), None, ctx.aws.profile.clone())
         .await?;
+
+    print_dbg!(&data);
 
     let mut handles = JoinSet::new();
 

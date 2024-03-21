@@ -1,3 +1,5 @@
+use chrono::serde::ts_milliseconds;
+use chrono::{DateTime, Utc};
 use color_eyre::eyre::OptionExt;
 use color_eyre::{eyre::eyre, Result};
 use serde::{Deserialize, Serialize};
@@ -24,9 +26,23 @@ pub struct Config {
     pub pr_name: String,
     pub pr_email: String,
     pub user_id: usize,
+
+    #[serde(with = "ts_milliseconds")]
+    pub last_auth: DateTime<Utc>,
 }
 
 impl Config {
+    pub fn update_auth(&mut self) {
+        self.last_auth = Utc::now();
+    }
+
+    pub fn is_auth_expired(&self) -> bool {
+        let now = Utc::now();
+        let last_auth = self.last_auth;
+
+        now.signed_duration_since(last_auth).num_seconds() > 60 * 60 * 8
+    }
+
     pub fn is_first_run() -> Result<bool> {
         let path = dir().ok_or_eyre("unable to get config_dir")?;
 

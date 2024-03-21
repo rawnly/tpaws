@@ -4,7 +4,6 @@ use colored::*;
 use commands::{aws::AWS, git, spawn_command};
 use config::Config;
 use human_panic::setup_panic;
-use inquire::Text;
 use mdka::from_html;
 use spinners::Spinner;
 use target_process::models::EntityStates;
@@ -63,7 +62,11 @@ async fn main() -> Result<()> {
             let region = aws.get_region().await?;
 
             let ctx = GlobalContext::new(aws, config, branch, repository);
-            ctx.aws.refresh_auth_if_needed().await?;
+
+            if ctx.config.is_auth_expired() {
+                ctx.aws.refresh_auth_if_needed().await?;
+                ctx.config.update_auth();
+            }
 
             match subcommands {
                 cli::PullRequestCommands::List { interactive } => {
