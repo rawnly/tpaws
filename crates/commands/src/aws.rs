@@ -43,9 +43,12 @@ pub struct PullRequestResponse {
     pub pull_request: PullRequest,
 }
 
-#[derive(strum::Display)]
+#[derive(Debug, Clone, strum::Display, Serialize, Deserialize, strum::EnumString)]
 pub enum PullRequestStatus {
+    #[strum(serialize = "open")]
     Open,
+
+    #[strum(serialize = "closed")]
     Close,
 }
 
@@ -59,6 +62,7 @@ pub struct PullRequestsList {
 pub struct AWS {
     pub profile: String,
     pub region: Option<String>,
+    pub author_arn: Option<String>,
 }
 
 impl AWS {
@@ -66,26 +70,24 @@ impl AWS {
         Self {
             profile,
             region: None,
+            author_arn: None,
         }
     }
 
-    pub async fn refresh_auth_if_needed(&self) -> Result<()> {
+    pub async fn refresh_auth_if_needed(&mut self) -> Result<String> {
         let mut auth_spinner = Spinner::new(Spinners::Dots, "Checking credentials...".into());
-        let is_authenticated = self.get_caller_identity().await.is_ok();
+        let CallerIdentity { arn, .. } = self.get_caller_identity().await?;
+        self.author_arn = Some(arn.clone());
 
-        if !is_authenticated {
-            auth_spinner.stop_and_persist("🔐", "Authentication needed!".into());
+        auth_spinner.stop_and_persist("🔐", "Authentication needed!".into());
 
-            let mut s = Spinner::new(Spinners::Dots, "Performing SSO Authentication".into());
+        let mut s = Spinner::new(Spinners::Dots, "Performing SSO Authentication".into());
 
-            self.login().await?;
+        self.login().await?;
 
-            s.stop_and_persist("✅", "Authenticated!".into());
-        } else {
-            auth_spinner.stop_and_persist("✅", "Authenticated!".into());
-        }
+        s.stop_and_persist("✅", "Authenticated!".into());
 
-        Ok(())
+        Ok(arn)
     }
 }
 
@@ -221,7 +223,7 @@ impl AWS {
         let stdout: Vec<u8>;
 
         if let Some(status) = status {
-            stdout = command!(
+            let out = command!(
                 "aws",
                 "codecommit",
                 "list-pull-requests",
@@ -239,10 +241,17 @@ impl AWS {
                 &self.profile
             )
             .output()
-            .await?
-            .stdout;
+            .await?;
+
+            if out.stdout.is_empty() {
+                let error_message = String::from_utf8(out.stderr)?;
+
+                return Err(eyre!(error_message));
+            }
+
+            stdout = out.stdout
         } else {
-            stdout = command!(
+            let out = command!(
                 "aws",
                 "codecommit",
                 "list-pull-requests",
@@ -258,8 +267,15 @@ impl AWS {
                 &self.profile
             )
             .output()
-            .await?
-            .stdout;
+            .await?;
+
+            if out.stdout.is_empty() {
+                let error_message = String::from_utf8(out.stderr)?;
+
+                return Err(eyre!(error_message));
+            }
+
+            stdout = out.stdout
         }
 
         let raw_output = String::from_utf8(stdout)?;

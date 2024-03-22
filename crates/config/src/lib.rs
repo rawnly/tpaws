@@ -1,4 +1,3 @@
-use chrono::serde::ts_milliseconds;
 use chrono::{DateTime, Utc};
 use color_eyre::eyre::OptionExt;
 use color_eyre::{eyre::eyre, Result};
@@ -26,21 +25,24 @@ pub struct Config {
     pub pr_name: String,
     pub pr_email: String,
     pub user_id: usize,
-
-    #[serde(with = "ts_milliseconds")]
-    pub last_auth: DateTime<Utc>,
+    pub last_auth: Option<DateTime<Utc>>,
+    pub arn: Option<String>,
 }
 
 impl Config {
-    pub fn update_auth(&mut self) {
-        self.last_auth = Utc::now();
+    pub fn update_auth(&mut self, arn: String) {
+        self.last_auth = Some(Utc::now());
+        self.arn = Some(arn);
     }
 
     pub fn is_auth_expired(&self) -> bool {
         let now = Utc::now();
-        let last_auth = self.last_auth;
 
-        now.signed_duration_since(last_auth).num_seconds() > 60 * 60 * 8
+        if let Some(last_auth) = self.last_auth {
+            return now.signed_duration_since(last_auth).num_seconds() > 60 * 60 * 8;
+        }
+
+        true
     }
 
     pub fn is_first_run() -> Result<bool> {
@@ -54,7 +56,7 @@ impl Config {
         Self: Sized + serde::de::DeserializeOwned + serde::Serialize,
     {
         let path = dir().ok_or_eyre("unable to get config_dir")?;
-        let file = std::fs::File::open(path.clone()).or(std::fs::File::create(path))?;
+        let file = std::fs::File::create(path.clone())?;
 
         serde_json::to_writer_pretty(file, self)?;
 

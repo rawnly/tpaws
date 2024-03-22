@@ -61,17 +61,22 @@ async fn main() -> Result<()> {
             let mut aws = AWS::new(profile);
             let region = aws.get_region().await?;
 
-            let ctx = GlobalContext::new(aws, config, branch, repository);
+            #[allow(unused)]
+            let mut ctx = GlobalContext::new(aws, config, branch, repository);
 
             if ctx.config.is_auth_expired() {
-                ctx.aws.refresh_auth_if_needed().await?;
-                ctx.config.update_auth();
+                let arn = ctx.aws.refresh_auth_if_needed().await?;
+                ctx.config.update_auth(arn);
+                ctx.config.write()?;
             }
 
+            let ctx = ctx;
+
             match subcommands {
-                cli::PullRequestCommands::List { interactive } => {
-                    subcommands::pull_request::list(ctx, interactive).await?
-                }
+                cli::PullRequestCommands::List {
+                    interactive,
+                    status,
+                } => subcommands::pull_request::list(ctx, status, interactive).await?,
                 cli::PullRequestCommands::Create {
                     title,
                     description,

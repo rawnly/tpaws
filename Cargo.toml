@@ -56,3 +56,5 @@ regex = "1.10.3"
 strum = { version = "0.26.1", features = ["derive"] }
 termimad = "0.29.1"
 mdka = "1.2.4"
+futures = "0.3.30"
+chrono = "0.4.35"

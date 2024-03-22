@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use commands::aws::PullRequestStatus;
 
 #[derive(Parser, Debug, Clone)]
 #[command(version, about, long_about = None)]
@@ -105,6 +106,9 @@ pub enum PullRequestCommands {
     List {
         #[arg(long)]
         interactive: bool,
+
+        #[arg(long, short)]
+        status: Option<PullRequestStatus>,
     },
 }
 
