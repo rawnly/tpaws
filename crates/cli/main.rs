@@ -1,18 +1,28 @@
+use std::str::FromStr;
+
 use clap::Parser;
-use color_eyre::{eyre::OptionExt, Result};
+use color_eyre::{
+    eyre::{eyre, Context, OptionExt},
+    Result,
+};
 use colored::*;
-use commands::{aws::AWS, git, spawn_command};
+use commands::{aws::AWS, command, git, spawn_command};
 use config::Config;
 use human_panic::setup_panic;
 use mdka::from_html;
 use spinners::Spinner;
 use target_process::models::EntityStates;
 
-use crate::context::GlobalContext;
+use crate::{
+    cli::ReleasePushTarget,
+    context::GlobalContext,
+    manifests::{node::PackageJson, Version},
+};
 
 mod cli;
 mod context;
 mod costants;
+mod manifests;
 mod subcommands;
 mod utils;
 
@@ -379,6 +389,74 @@ async fn main() -> Result<()> {
         cli::Commands::Config { subcommands } => match subcommands {
             cli::ConfigCommands::Reset => subcommands::config::reset().await?,
         },
+        cli::Commands::Release { subcommands } => {
+            if !PackageJson::exists().await {
+                return Err(eyre!("currently we support only nodejs"));
+            }
+
+            let pkg = PackageJson::read().await?;
+            let branch = git::current_branch().await?;
+
+            match subcommands {
+                cli::ReleaseCommands::Start => {
+                    let mut pkg = pkg.clone();
+                    let prev_version = pkg.version.clone();
+                    let mut version =
+                        Version::from_str(&pkg.version).map_err(|_| eyre!("invalid version"))?;
+
+                    // bump
+                    version.bump_minor();
+                    pkg.version = version.to_string();
+
+                    git::flow::release::start(&version.to_string()).await?;
+                    command!("npm", "version", "minor").output().await?;
+
+                    println!("version bumped from {prev_version} to: {}", pkg.version)
+                }
+                cli::ReleaseCommands::Push { target } => match target {
+                    ReleasePushTarget::Prod => {
+                        git::force_push_to_env("origin", "prod")
+                            .await
+                            .context("failed prod push")?;
+                    }
+                    ReleasePushTarget::Staging => {
+                        git::force_push_to_env("origin", "staging")
+                            .await
+                            .context("failed staging push")?;
+                    }
+                    ReleasePushTarget::All => {
+                        git::force_push_to_env("origin", "staging")
+                            .await
+                            .context("failed to push to staging")?;
+
+                        git::force_push_to_env("origin", "prod")
+                            .await
+                            .context("failed to push to prod")?;
+                    }
+                },
+                cli::ReleaseCommands::Finish => {
+                    let pkg = pkg.clone();
+
+                    git::flow::release::finish(&pkg.version)
+                        .await
+                        .context("failed to finish release")?;
+
+                    git::push("origin", Some("master"))
+                        .await
+                        .context("failed to push master")?;
+
+                    git::push("origin", Some("develop"))
+                        .await
+                        .context("failed to push develop")?;
+
+                    git::push_tags().await.context("failed to push tags")?;
+
+                    git::delete_remote_branch("origin", branch)
+                        .await
+                        .context("failed to delete remote branch")?;
+                }
+            }
+        }
     }
 
     Ok(())

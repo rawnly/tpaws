@@ -17,6 +17,23 @@ pub struct Args {
     pub quiet: bool,
 }
 
+#[derive(Debug, Clone, strum::Display, strum::EnumString)]
+pub enum ReleasePushTarget {
+    Staging,
+    Prod,
+    All,
+}
+
+#[derive(Subcommand, strum::Display, Debug, Clone)]
+pub enum ReleaseCommands {
+    Start,
+    Push {
+        #[arg(long, short, default_value = "All")]
+        target: ReleasePushTarget,
+    },
+    Finish,
+}
+
 #[derive(Subcommand, strum::Display, Debug, Clone)]
 pub enum TicketCommands {
     /// Info about the current branch or given userStory id
@@ -119,10 +136,17 @@ pub enum ConfigCommands {
 
 #[derive(Subcommand, strum::Display, Debug, Clone)]
 pub enum Commands {
+    /// Manage configs
     #[clap(visible_alias = "cfg")]
     Config {
         #[command(subcommand)]
         subcommands: ConfigCommands,
+    },
+
+    /// Release
+    Release {
+        #[command(subcommand)]
+        subcommands: ReleaseCommands,
     },
 
     /// Manage target process

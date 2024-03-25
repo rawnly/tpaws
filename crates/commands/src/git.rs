@@ -1,6 +1,39 @@
 use crate::command;
 use color_eyre::Result;
 
+pub async fn force_push_to_env(remote: &str, env: &str) -> Result<()> {
+    let branch = command!("git", "rev-parse", "--abbrev-ref", "HEAD")
+        .output()
+        .await?
+        .stdout;
+    let branch = String::from_utf8(branch)?;
+    let branch = branch.trim();
+
+    let target = format!("{branch}:{env}");
+
+    command!("git", "push", "--force", remote, &target)
+        .spawn()?
+        .wait()
+        .await?;
+
+    Ok(())
+}
+
+pub async fn push(remote: &str, branch: Option<&str>) -> Result<()> {
+    if let Some(branch) = branch {
+        command!("git", "push", remote, branch).output().await?;
+        return Ok(());
+    }
+
+    command!("git", "push", remote).output().await?;
+    Ok(())
+}
+
+pub async fn push_tags() -> Result<()> {
+    command!("git", "push", "--tags").output().await?;
+    Ok(())
+}
+
 pub async fn current_branch() -> Result<String> {
     let bytes = command!("git", "branch", "--show-current")
         .output()
@@ -51,6 +84,30 @@ pub async fn fetch(prune: bool) -> Result<()> {
 }
 
 pub mod flow {
+    pub mod release {
+        use crate::command;
+
+        use color_eyre::Result;
+
+        pub async fn start(name: &str) -> Result<String> {
+            let stdout = command!("git", "flow", "release", "start", name)
+                .output()
+                .await?
+                .stdout;
+
+            Ok(String::from_utf8(stdout)?.trim().to_string())
+        }
+
+        pub async fn finish(name: &str) -> Result<String> {
+            let stdout = command!("git", "flow", "release", "finish", name)
+                .output()
+                .await?
+                .stdout;
+
+            Ok(String::from_utf8(stdout)?.trim().to_string())
+        }
+    }
+
     pub mod feature {
         use crate::command;
 
