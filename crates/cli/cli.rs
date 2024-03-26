@@ -67,10 +67,18 @@ pub enum TicketCommands {
         no_assign: bool,
     },
     /// Run `git flow finish`
-    Finish { id_or_url: Option<String> },
+    Finish {
+        id_or_url: Option<String>,
+    },
 
     /// Print userStory link
-    Link { id_or_url: Option<String> },
+    Link {
+        id_or_url: Option<String>,
+    },
+
+    GetId {
+        url: Option<String>,
+    },
 }
 
 #[derive(Subcommand, strum::Display, Debug, Clone)]

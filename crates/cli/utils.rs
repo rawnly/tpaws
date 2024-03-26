@@ -8,6 +8,17 @@ use commands::{
 };
 use regex::Regex;
 
+pub struct RepoMetadata {
+    pub branch: String,
+    pub repository: String,
+}
+
+impl RepoMetadata {
+    pub fn new(repository: String, branch: String) -> Self {
+        Self { repository, branch }
+    }
+}
+
 pub(crate) fn build_pr_link(region: String, repository: String, id: String) -> String {
     format!("https://{region}.console.aws.amazon.com/codesuite/codecommit/repositories/{repository}/pull-requests/{id}/details")
 }

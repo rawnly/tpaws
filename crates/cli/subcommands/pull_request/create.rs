@@ -1,7 +1,7 @@
 use color_eyre::{eyre::OptionExt, Result};
 use colored::*;
 use commands::{aws::AWS, git};
-use inquire::{Confirm, Select};
+use inquire::{Confirm, Select, Text};
 use spinners::{Spinner, Spinners};
 
 use crate::{cli, costants, utils};
@@ -21,11 +21,23 @@ pub async fn create(
     let branch = raw_branch.trim().to_string();
 
     let feature_name = branch.split('/').last().unwrap_or(&branch);
-
     let tp_link = format!("https://satispay.tpondemand.com/entity/{feature_name}");
 
-    let title = utils::grab_title(title, branch.to_string()).await?;
-    let description = description.unwrap_or(format!("See: {tp_link}"));
+    let is_valid_tp_branch = utils::get_ticket_id_from_branch(branch.clone()).is_some();
+
+    let title = match utils::grab_title(title, branch.clone()).await {
+        Ok(v) => v,
+        Err(_) => Text::new("Title:")
+            .with_placeholder("Your PR Title")
+            .prompt()?,
+    };
+
+    let description = if is_valid_tp_branch {
+        description.unwrap_or(format!("See: {tp_link}"))
+    } else {
+        description.unwrap_or(Text::new("Description:").prompt()?)
+    };
+
     let base_branch = base;
 
     let repository = {
@@ -68,7 +80,7 @@ pub async fn create(
         .create_pull_request(
             repository.clone(),
             title.clone(),
-            format!("See: {}", tp_link),
+            description,
             branch,
             base_branch,
         )
