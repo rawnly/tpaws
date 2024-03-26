@@ -29,14 +29,14 @@ pub async fn list(
 
     let mut handles = JoinSet::new();
 
+    let aws = Arc::new(ctx.aws);
+    let repository = Arc::new(ctx.repository);
+
     for id in data {
-        let aws = Arc::new(ctx.aws.clone());
-        let repository = Arc::new(ctx.clone().repository);
+        let repository = Arc::clone(&repository);
+        let aws = Arc::clone(&aws);
 
         handles.spawn(async move {
-            let repository = Arc::clone(&repository);
-            let aws = Arc::clone(&aws);
-
             if let Ok(PullRequestResponse { pull_request: pr }) =
                 aws.get_pull_request(id.clone()).await
             {

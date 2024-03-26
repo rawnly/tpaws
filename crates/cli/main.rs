@@ -79,8 +79,7 @@ async fn main() -> Result<()> {
             let mut aws = AWS::new(profile);
             let region = aws.get_region().await?;
 
-            #[allow(unused)]
-            let mut ctx = GlobalContext::new(aws, config, branch.clone(), repository.clone());
+            let mut ctx = GlobalContext::new(aws, config, branch, repository);
 
             if ctx.config.is_auth_expired() {
                 let arn = ctx.aws.refresh_auth_if_needed().await?;
