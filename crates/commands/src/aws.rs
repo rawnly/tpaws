@@ -73,7 +73,10 @@ pub struct PullRequestsList {
 
 pub async fn refresh_auth_if_needed(profile: String) -> Result<String> {
     let mut auth_spinner = Spinner::new(Spinners::Dots, "Checking credentials...".into());
-    let CallerIdentity { arn, .. } = get_caller_identity(profile.clone()).await?;
+
+    if let Ok(CallerIdentity { arn, .. }) = get_caller_identity_no_cache(profile.clone()).await {
+        return Ok(arn);
+    }
     // self.author_arn = Some(arn.clone());
 
     auth_spinner.stop_and_persist("🔐", "Authentication needed!".into());
@@ -84,7 +87,9 @@ pub async fn refresh_auth_if_needed(profile: String) -> Result<String> {
 
     s.stop_and_persist("✅", "Authenticated!".into());
 
-    Ok(arn)
+    let identity = get_caller_identity_no_cache(profile.clone()).await?;
+
+    Ok(identity.arn)
 }
 
 /// AWS API Methods
