@@ -339,7 +339,7 @@ pub async fn merge_pr_by_squash(
     email: String,
     profile: String,
 ) -> Result<PullRequest> {
-    let stdout = command!(
+    let output = command!(
         "aws",
         "codecommit",
         "merge-pull-request-by-squash",
@@ -362,12 +362,16 @@ pub async fn merge_pr_by_squash(
     )
     .output()
     .await
-    .map_err(CommandError::from_io)?
-    .stdout;
+    .map_err(CommandError::from_io)?;
 
-    let raw_stdout = String::from_utf8(stdout)?;
-    let json: PullRequestResponse =
-        serde_json::from_str(&raw_stdout).map_err(CommandError::from_serde)?;
+    let raw_stdout = String::from_utf8(output.stdout)?;
 
-    Ok(json.pull_request)
+    if let Ok(json) =
+        serde_json::from_str::<PullRequestResponse>(&raw_stdout).map_err(CommandError::from_serde)
+    {
+        return Ok(json.pull_request);
+    }
+
+    let raw_stderr = String::from_utf8(output.stderr)?;
+    Err(CommandError::IOError(raw_stderr))
 }

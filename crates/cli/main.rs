@@ -128,13 +128,14 @@ async fn main() -> Result<()> {
                         author_email,
                         commit_message,
                         region,
-                        utils::RepoMetadata::new(branch, repository),
+                        utils::RepoMetadata::new(repository, branch),
                         args.quiet,
                     )
                     .await?
                 }
             }
         }
+        #[cfg(debug_assertions)]
         cli::Commands::CacheTest => {
             for i in 0..10 {
                 let start = std::time::Instant::now();

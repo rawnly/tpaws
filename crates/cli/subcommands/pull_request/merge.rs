@@ -1,3 +1,4 @@
+use anyhow::Context;
 use color_eyre::Result;
 use colored::*;
 use commands::{aws, git};
@@ -76,13 +77,21 @@ pub async fn merge(
             .prompt()?
     };
 
-    let commit = if quiet {
+    let mut commit = if quiet {
         commit_message.unwrap_or(pr.description)
     } else {
         inquire::Text::new("Commit Message")
             .with_default(&commit_message.unwrap_or(pr.description))
             .prompt()?
     };
+
+    if commit.contains("{{id}}") {
+        let assignable_id = utils::get_ticket_id_from_branch(branch.clone())
+            .context("get branch id")
+            .unwrap();
+
+        commit = commit.replace("{{id}}", &assignable_id);
+    }
 
     if inquire::Confirm::new("Confirm?")
         .with_default(false)
