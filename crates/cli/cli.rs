@@ -151,6 +151,8 @@ pub enum Commands {
         subcommands: ConfigCommands,
     },
 
+    CacheTest,
+
     /// Release
     Release {
         #[command(subcommand)]

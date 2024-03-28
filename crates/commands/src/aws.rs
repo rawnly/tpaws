@@ -1,7 +1,9 @@
-use crate::{command, spawn_command};
-use color_eyre::{eyre::eyre, Result};
+use crate::{command, spawn_command, CommandError};
+use cached::proc_macro::cached;
 use serde::{Deserialize, Serialize};
 use spinners::{Spinner, Spinners};
+
+type Result<T> = std::result::Result<T, CommandError>;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "PascalCase")]
@@ -43,7 +45,18 @@ pub struct PullRequestResponse {
     pub pull_request: PullRequest,
 }
 
-#[derive(Debug, Clone, strum::Display, Serialize, Deserialize, strum::EnumString)]
+#[derive(
+    Hash,
+    strum::AsRefStr,
+    Debug,
+    Clone,
+    PartialEq,
+    Eq,
+    strum::Display,
+    Serialize,
+    Deserialize,
+    strum::EnumString,
+)]
 pub enum PullRequestStatus {
     #[strum(serialize = "open")]
     Open,
@@ -58,138 +71,163 @@ pub struct PullRequestsList {
     pub pull_request_ids: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
-pub struct AWS {
-    pub profile: String,
-    pub region: Option<String>,
-    pub author_arn: Option<String>,
-}
+pub async fn refresh_auth_if_needed(profile: String) -> Result<String> {
+    let mut auth_spinner = Spinner::new(Spinners::Dots, "Checking credentials...".into());
+    let CallerIdentity { arn, .. } = get_caller_identity(profile.clone()).await?;
+    // self.author_arn = Some(arn.clone());
 
-impl AWS {
-    pub fn new(profile: String) -> Self {
-        Self {
-            profile,
-            region: None,
-            author_arn: None,
-        }
-    }
+    auth_spinner.stop_and_persist("🔐", "Authentication needed!".into());
 
-    pub async fn refresh_auth_if_needed(&mut self) -> Result<String> {
-        let mut auth_spinner = Spinner::new(Spinners::Dots, "Checking credentials...".into());
-        let CallerIdentity { arn, .. } = self.get_caller_identity().await?;
-        self.author_arn = Some(arn.clone());
+    let mut s = Spinner::new(Spinners::Dots, "Performing SSO Authentication".into());
 
-        auth_spinner.stop_and_persist("🔐", "Authentication needed!".into());
+    login(&profile).await?;
 
-        let mut s = Spinner::new(Spinners::Dots, "Performing SSO Authentication".into());
+    s.stop_and_persist("✅", "Authenticated!".into());
 
-        self.login().await?;
-
-        s.stop_and_persist("✅", "Authenticated!".into());
-
-        Ok(arn)
-    }
+    Ok(arn)
 }
 
 /// AWS API Methods
-impl AWS {
-    pub async fn login(&self) -> Result<()> {
-        spawn_command!(
-            "aws",
-            "sso",
-            "login",
-            "--color",
-            "off",
-            "--profile",
-            &self.profile
-        )?
-        .wait()
-        .await?;
+pub async fn login(profile: &str) -> Result<()> {
+    spawn_command!(
+        "aws",
+        "sso",
+        "login",
+        "--color",
+        "off",
+        "--profile",
+        profile
+    )
+    .map_err(CommandError::from_io)?
+    .wait()
+    .await
+    .map_err(CommandError::from_io)?;
 
-        Ok(())
+    Ok(())
+}
+
+#[cached]
+pub async fn get_caller_identity(profile: String) -> Result<CallerIdentity> {
+    let output = command!(
+        "aws",
+        "sts",
+        "get-caller-identity",
+        "--output",
+        "json",
+        "--color",
+        "off",
+        "--profile",
+        &profile
+    )
+    .output()
+    .await
+    .map_err(CommandError::from_io)?;
+
+    if output.status.success() {
+        let string_value = String::from_utf8(output.stdout)?;
+        let caller_identity: CallerIdentity =
+            serde_json::from_str(&string_value).map_err(CommandError::from_serde)?;
+
+        return Ok(caller_identity);
     }
 
-    pub async fn get_caller_identity(&self) -> Result<CallerIdentity> {
-        let output = command!(
-            "aws",
-            "sts",
-            "get-caller-identity",
-            "--output",
-            "json",
-            "--color",
-            "off",
-            "--profile",
-            &self.profile
-        )
-        .output()
-        .await?;
+    let error_message = String::from_utf8(output.stderr)?;
+    Err(CommandError::IOError(error_message.to_string()))
+}
 
-        if output.status.success() {
-            let string_value = String::from_utf8(output.stdout)?;
-            let caller_identity: CallerIdentity = serde_json::from_str(&string_value)?;
+#[cached]
+pub async fn get_region(profile: String) -> Result<String> {
+    let stdout = command!(
+        "aws",
+        "configure",
+        "get",
+        "region",
+        "--color",
+        "off",
+        "--profile",
+        &profile
+    )
+    .output()
+    .await
+    .map_err(CommandError::from_io)?
+    .stdout;
 
-            return Ok(caller_identity);
-        }
+    let region = String::from_utf8(stdout)?;
+    let region = region.trim().to_string();
 
-        let error_message = String::from_utf8(output.stderr)?;
+    Ok(region)
+}
 
-        Err(eyre!("{error_message}"))
-    }
+#[cached]
+pub async fn get_pull_request(id: String, profile: String) -> Result<PullRequestResponse> {
+    let stdout = command!(
+        "aws",
+        "codecommit",
+        "get-pull-request",
+        "--pull-request-id",
+        &id,
+        "--color",
+        "off",
+        "--output",
+        "json",
+        "--profile",
+        &profile
+    )
+    .output()
+    .await
+    .map_err(CommandError::from_io)?
+    .stdout;
 
-    pub async fn get_region(&mut self) -> Result<String> {
-        let stdout = command!(
-            "aws",
-            "configure",
-            "get",
-            "region",
-            "--color",
-            "off",
-            "--profile",
-            &self.profile
-        )
-        .output()
-        .await?
-        .stdout;
+    let raw_stdout = String::from_utf8(stdout)?;
 
-        let region = String::from_utf8(stdout)?;
-        let region = region.trim().to_string();
+    serde_json::from_str(&raw_stdout).map_err(CommandError::from_serde)
+}
 
-        self.region = Some(region.clone());
+#[cached]
+pub async fn list_pull_requests(
+    repository: String,
+    pull_request_status: PullRequestStatus,
+    profile: String,
+) -> Result<PullRequestsList> {
+    let status = &pull_request_status.to_string();
 
-        Ok(region)
-    }
+    let stdout = command!(
+        "aws",
+        "codecommit",
+        "list-pull-requests",
+        "--repository",
+        &repository,
+        "--output",
+        "json",
+        "--pull-request-status",
+        status,
+        "--color",
+        "off",
+        "--profile",
+        &profile
+    )
+    .output()
+    .await
+    .map_err(CommandError::from_io)?
+    .stdout;
 
-    pub async fn get_pull_request(&self, id: String) -> Result<PullRequestResponse> {
-        let stdout = command!(
-            "aws",
-            "codecommit",
-            "get-pull-request",
-            "--pull-request-id",
-            &id,
-            "--color",
-            "off",
-            "--output",
-            "json",
-            "--profile",
-            &self.profile
-        )
-        .output()
-        .await?
-        .stdout;
+    let raw_output = String::from_utf8(stdout)?;
 
-        let raw_stdout = String::from_utf8(stdout)?;
+    serde_json::from_str(&raw_output).map_err(CommandError::from_serde)
+}
 
-        Ok(serde_json::from_str(&raw_stdout)?)
-    }
+#[cached]
+pub async fn list_my_pull_requests(
+    repository: String,
+    pull_request_status: Option<PullRequestStatus>,
+    author_arn: String,
+    profile: String,
+) -> Result<PullRequestsList> {
+    let status = &pull_request_status.map(|s| s.to_string());
+    let stdout: Vec<u8>;
 
-    pub async fn list_pull_requests(
-        &self,
-        repository: String,
-        pull_request_status: PullRequestStatus,
-    ) -> Result<PullRequestsList> {
-        let status = &pull_request_status.to_string();
-
-        let stdout = command!(
+    if let Some(status) = status {
+        let out = command!(
             "aws",
             "codecommit",
             "list-pull-requests",
@@ -199,163 +237,132 @@ impl AWS {
             "json",
             "--pull-request-status",
             status,
+            "--author-arn",
+            &author_arn,
             "--color",
             "off",
             "--profile",
-            &self.profile
+            &profile
         )
         .output()
-        .await?
-        .stdout;
+        .await
+        .map_err(CommandError::from_io)?;
 
-        let raw_output = String::from_utf8(stdout)?;
-
-        Ok(serde_json::from_str(&raw_output)?)
-    }
-
-    pub async fn list_my_pull_requests(
-        &self,
-        repository: String,
-        pull_request_status: Option<PullRequestStatus>,
-        author_arn: String,
-    ) -> Result<PullRequestsList> {
-        let status = &pull_request_status.map(|s| s.to_string());
-        let stdout: Vec<u8>;
-
-        if let Some(status) = status {
-            let out = command!(
-                "aws",
-                "codecommit",
-                "list-pull-requests",
-                "--repository",
-                &repository,
-                "--output",
-                "json",
-                "--pull-request-status",
-                status,
-                "--author-arn",
-                &author_arn,
-                "--color",
-                "off",
-                "--profile",
-                &self.profile
-            )
-            .output()
-            .await?;
-
-            if out.stdout.is_empty() {
-                let error_message = String::from_utf8(out.stderr)?;
-
-                return Err(eyre!(error_message));
-            }
-
-            stdout = out.stdout
-        } else {
-            let out = command!(
-                "aws",
-                "codecommit",
-                "list-pull-requests",
-                "--repository",
-                &repository,
-                "--output",
-                "json",
-                "--author-arn",
-                &author_arn,
-                "--color",
-                "off",
-                "--profile",
-                &self.profile
-            )
-            .output()
-            .await?;
-
-            if out.stdout.is_empty() {
-                let error_message = String::from_utf8(out.stderr)?;
-
-                return Err(eyre!(error_message));
-            }
-
-            stdout = out.stdout
+        if out.stdout.is_empty() {
+            let error_message = String::from_utf8(out.stderr)?;
+            return Err(CommandError::IOError(error_message.to_string()));
         }
 
-        let raw_output = String::from_utf8(stdout)?;
-        Ok(serde_json::from_str(&raw_output)?)
-    }
-
-    pub async fn create_pull_request(
-        &self,
-        repository: String,
-        title: String,
-        description: String,
-        source_branch: String,
-        target_branch: String,
-    ) -> Result<PullRequestResponse> {
-        let targets = format!(
-            "repositoryName={},sourceReference={},destinationReference={}",
-            repository, source_branch, target_branch
-        );
-
-        let stdout = command!(
+        stdout = out.stdout
+    } else {
+        let out = command!(
             "aws",
             "codecommit",
-            "create-pull-request",
+            "list-pull-requests",
+            "--repository",
+            &repository,
             "--output",
             "json",
-            "--title",
-            &title,
-            "--description",
-            &description,
-            "--targets",
-            &targets,
+            "--author-arn",
+            &author_arn,
             "--color",
             "off",
             "--profile",
-            &self.profile
+            &profile
         )
         .output()
-        .await?
-        .stdout;
+        .await
+        .map_err(CommandError::from_io)?;
 
-        let string_output = String::from_utf8(stdout)?;
+        if out.stdout.is_empty() {
+            let error_message = String::from_utf8(out.stderr)?;
+            return Err(CommandError::IOError(error_message.to_string()));
+        }
 
-        Ok(serde_json::from_str(&string_output)?)
+        stdout = out.stdout
     }
 
-    pub async fn merge_pr_by_squash(
-        &self,
-        id: String,
-        repository: String,
-        message: String,
-        name: String,
-        email: String,
-    ) -> Result<PullRequest> {
-        let stdout = command!(
-            "aws",
-            "codecommit",
-            "merge-pull-request-by-squash",
-            "--pull-request-id",
-            &id,
-            "--repository-name",
-            &repository,
-            "--commit-message",
-            &message,
-            "--author-name",
-            &name,
-            "--email",
-            &email,
-            "--profile",
-            &self.profile,
-            "--color",
-            "off",
-            "--output",
-            "json"
-        )
-        .output()
-        .await?
-        .stdout;
-        let raw_stdout = String::from_utf8(stdout)?;
-        let json: PullRequestResponse = serde_json::from_str(&raw_stdout)?;
+    let raw_output = String::from_utf8(stdout)?;
+    serde_json::from_str(&raw_output).map_err(CommandError::from_serde)
+}
 
-        Ok(json.pull_request)
-    }
+pub async fn create_pull_request(
+    repository: String,
+    title: String,
+    description: String,
+    source_branch: String,
+    target_branch: String,
+    profile: String,
+) -> Result<PullRequestResponse> {
+    let targets = format!(
+        "repositoryName={},sourceReference={},destinationReference={}",
+        repository, source_branch, target_branch
+    );
+
+    let stdout = command!(
+        "aws",
+        "codecommit",
+        "create-pull-request",
+        "--output",
+        "json",
+        "--title",
+        &title,
+        "--description",
+        &description,
+        "--targets",
+        &targets,
+        "--color",
+        "off",
+        "--profile",
+        &profile
+    )
+    .output()
+    .await
+    .map_err(CommandError::from_io)?
+    .stdout;
+
+    let string_output = String::from_utf8(stdout)?;
+
+    serde_json::from_str(&string_output).map_err(CommandError::from_serde)
+}
+
+pub async fn merge_pr_by_squash(
+    id: String,
+    repository: String,
+    message: String,
+    name: String,
+    email: String,
+    profile: String,
+) -> Result<PullRequest> {
+    let stdout = command!(
+        "aws",
+        "codecommit",
+        "merge-pull-request-by-squash",
+        "--pull-request-id",
+        &id,
+        "--repository-name",
+        &repository,
+        "--commit-message",
+        &message,
+        "--author-name",
+        &name,
+        "--email",
+        &email,
+        "--profile",
+        &profile,
+        "--color",
+        "off",
+        "--output",
+        "json"
+    )
+    .output()
+    .await
+    .map_err(CommandError::from_io)?
+    .stdout;
+
+    let raw_stdout = String::from_utf8(stdout)?;
+    let json: PullRequestResponse =
+        serde_json::from_str(&raw_stdout).map_err(CommandError::from_serde)?;
+
+    Ok(json.pull_request)
 }

@@ -59,3 +59,4 @@ mdka = "1.2.4"
 futures = "0.3.30"
 chrono = "0.4.35"
 serde = { version = "1.0.197", features = ["derive"] }
+cached = { version = "0.49.2", features = ["async", "async_tokio_rt_multi_thread", "serde", "serde_json"] }

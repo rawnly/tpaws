@@ -1,5 +1,31 @@
+use std::string::FromUtf8Error;
+
+use thiserror::Error;
+
 pub mod aws;
 pub mod git;
+
+#[derive(Debug, Clone, Error)]
+pub enum CommandError {
+    #[error("Failed to parse output: {0}")]
+    ParseError(#[from] FromUtf8Error),
+
+    #[error("failed to execute command: {0}")]
+    IOError(String),
+
+    #[error("failed to serialize command output: {0}")]
+    SerializationError(String),
+}
+
+impl CommandError {
+    pub fn from_io(e: std::io::Error) -> Self {
+        CommandError::IOError(e.to_string())
+    }
+
+    pub fn from_serde(e: serde_json::Error) -> Self {
+        CommandError::SerializationError(e.to_string())
+    }
+}
 
 #[macro_export]
 macro_rules! is_installed {

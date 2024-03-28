@@ -1,6 +1,6 @@
 use color_eyre::Result;
 use colored::*;
-use commands::git;
+use commands::{aws, git};
 use spinners::{Spinner, Spinners};
 use target_process::models::EntityStates;
 
@@ -20,7 +20,7 @@ pub async fn merge(
 ) -> Result<()> {
     let RepoMetadata { repository, branch } = metadata;
 
-    let pr = utils::get_pr_id(&ctx.aws, id).await?;
+    let pr = utils::get_pr_id(ctx.profile.clone(), id).await?;
     let link = utils::build_pr_link(region, repository.clone(), pr.id.to_string());
 
     let email = git::config("user.email".to_string())
@@ -90,10 +90,8 @@ pub async fn merge(
     {
         let mut merge_spinner = Spinner::new(Spinners::Dots, format!("Squashing {}...", pr.id));
 
-        let updated_pr = ctx
-            .aws
-            .merge_pr_by_squash(pr.id, repository, commit, name, email)
-            .await?;
+        let updated_pr =
+            aws::merge_pr_by_squash(pr.id, repository, commit, name, email, ctx.profile).await?;
 
         merge_spinner.stop_with_symbol("✅");
 
@@ -115,7 +113,7 @@ pub async fn merge(
 
         if let Some(assignable_id) = utils::get_ticket_id_from_branch(branch) {
             // TODO: remove this api call and parse assignable_id to usize
-            let ticket = target_process::get_assignable(&assignable_id).await?;
+            let ticket = target_process::get_assignable(assignable_id).await?;
 
             if ticket.is_user_story() {
                 target_process::update_entity_state(ticket.id, EntityStates::InStaging).await?;

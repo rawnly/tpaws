@@ -6,11 +6,10 @@ use color_eyre::{
     Result,
 };
 use colored::*;
-use commands::{aws::AWS, command, git, spawn_command};
+use commands::{aws, command, git, spawn_command};
 use config::Config;
 use human_panic::setup_panic;
 use mdka::from_html;
-use spinners::Spinner;
 use target_process::models::EntityStates;
 
 use crate::{
@@ -76,18 +75,21 @@ async fn main() -> Result<()> {
             let branch = git::current_branch().await?;
             let repository = utils::get_repository().await?;
 
-            let mut aws = AWS::new(profile);
-            let region = aws.get_region().await?;
+            let region = aws::get_region(profile.clone()).await?;
 
-            let mut ctx = GlobalContext::new(aws, config, branch, repository);
+            let mut ctx = GlobalContext::new(
+                profile,
+                region.clone(),
+                config,
+                branch.clone(),
+                repository.clone(),
+            );
 
             if ctx.config.is_auth_expired() {
-                let arn = ctx.aws.refresh_auth_if_needed().await?;
+                let arn = aws::refresh_auth_if_needed(ctx.profile.clone()).await?;
                 ctx.config.update_auth(arn);
                 ctx.config.write()?;
             }
-
-            let ctx = ctx;
 
             match subcommands {
                 cli::PullRequestCommands::List {
@@ -101,8 +103,8 @@ async fn main() -> Result<()> {
                     slack,
                 } => {
                     subcommands::pull_request::create(
+                        ctx,
                         create_pr_args,
-                        &ctx.aws,
                         title,
                         description,
                         base,
@@ -131,6 +133,14 @@ async fn main() -> Result<()> {
                     )
                     .await?
                 }
+            }
+        }
+        cli::Commands::CacheTest => {
+            for i in 0..10 {
+                let start = std::time::Instant::now();
+                let _ = target_process::get_me().await?;
+
+                println!("{:?}", start.elapsed());
             }
         }
         cli::Commands::Ticket { subcommands } => match subcommands {
@@ -187,7 +197,7 @@ async fn main() -> Result<()> {
                 };
 
                 let id = utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url);
-                let assignable = target_process::get_assignable(&id).await?;
+                let assignable = target_process::get_assignable(id).await?;
 
                 if !no_assign {
                     let user_id = config.user_id;
@@ -218,7 +228,7 @@ async fn main() -> Result<()> {
                         .ok_or_eyre("Unable to extract userStory ID")?
                 };
 
-                let assignable = target_process::get_assignable(&id).await?;
+                let assignable = target_process::get_assignable(id).await?;
 
                 let branch = assignable.get_branch();
                 commands::git::flow::feature::finish(&branch).await?;
@@ -237,7 +247,7 @@ async fn main() -> Result<()> {
                         .ok_or_eyre("Unable to extract userStory ID")?
                 };
 
-                let assignable = target_process::get_assignable(&id).await?;
+                let assignable = target_process::get_assignable(id).await?;
 
                 if web {
                     spawn_command!("open", assignable.get_link())?;
@@ -272,7 +282,7 @@ async fn main() -> Result<()> {
                         .ok_or_eyre("Unable to extract userStory ID")?
                 };
 
-                let assignable = target_process::get_assignable(&id).await?;
+                let assignable = target_process::get_assignable(id).await?;
 
                 println!("{}", assignable.get_link());
             }

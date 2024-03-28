@@ -1,18 +1,25 @@
-use commands::aws::AWS;
 use config::Config;
 
 #[derive(Debug, Clone)]
 pub struct GlobalContext {
-    pub aws: AWS,
+    pub profile: String,
+    pub region: String,
     pub branch: String,
     pub repository: String,
     pub config: Config,
 }
 
 impl GlobalContext {
-    pub fn new(aws: AWS, config: Config, branch: String, repository: String) -> Self {
+    pub fn new(
+        profile: String,
+        region: String,
+        config: Config,
+        branch: String,
+        repository: String,
+    ) -> Self {
         Self {
-            aws,
+            profile,
+            region,
             branch,
             repository,
             config,

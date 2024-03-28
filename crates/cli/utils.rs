@@ -1,9 +1,10 @@
+use cached::proc_macro::cached;
 use color_eyre::{
     eyre::{eyre, OptionExt},
     Result,
 };
 use commands::{
-    aws::{PullRequest, PullRequestStatus, AWS},
+    aws::{self, PullRequest, PullRequestStatus},
     git,
 };
 use regex::Regex;
@@ -19,20 +20,20 @@ impl RepoMetadata {
     }
 }
 
+#[cached]
 pub(crate) fn build_pr_link(region: String, repository: String, id: String) -> String {
     format!("https://{region}.console.aws.amazon.com/codesuite/codecommit/repositories/{repository}/pull-requests/{id}/details")
 }
 
-pub(crate) async fn get_pr_id(aws: &AWS, id: Option<String>) -> Result<PullRequest> {
+pub(crate) async fn get_pr_id(profile: String, id: Option<String>) -> Result<PullRequest> {
     let branch = git::current_branch().await?;
     let repository = get_repository().await?;
 
-    let all_prs = aws
-        .list_pull_requests(repository, PullRequestStatus::Open)
-        .await?;
+    let all_prs =
+        aws::list_pull_requests(repository, PullRequestStatus::Open, profile.clone()).await?;
 
     for pr_id in all_prs.pull_request_ids {
-        let current_pr = aws.get_pull_request(pr_id).await?;
+        let current_pr = aws::get_pull_request(pr_id, profile.clone()).await?;
 
         if let Some(id) = id.clone() {
             if current_pr.pull_request.id == id {
@@ -95,7 +96,7 @@ pub(crate) async fn grab_title(title: Option<String>, branch: String) -> Result<
             let id =
                 get_ticket_id_from_branch(branch).ok_or_eyre("failed to retrive user_story ID")?;
 
-            let assignable = target_process::get_assignable(&id).await?;
+            let assignable = target_process::get_assignable(id).await?;
 
             Ok(assignable.name)
         }

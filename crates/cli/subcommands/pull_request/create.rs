@@ -1,20 +1,20 @@
-use color_eyre::{eyre::OptionExt, Result};
+use color_eyre::Result;
 use colored::*;
-use commands::{aws::AWS, git};
+use commands::{aws, git};
 use inquire::{Confirm, Select, Text};
 use spinners::{Spinner, Spinners};
 
-use crate::{cli, costants, utils};
+use crate::{cli, context::GlobalContext, costants, utils};
 
 pub async fn create(
+    ctx: GlobalContext,
     args: cli::Args,
-    aws: &AWS,
     title: Option<String>,
     description: Option<String>,
     base: String,
     slack: bool,
 ) -> Result<()> {
-    let raw_region = aws.clone().region.ok_or_eyre("Missing AWS Region")?;
+    let raw_region = aws::get_region(ctx.profile.clone()).await?;
     let region = raw_region.trim().to_string();
 
     let raw_branch = git::current_branch().await?;
@@ -76,15 +76,15 @@ pub async fn create(
 
     let mut pr_spinner = Spinner::new(Spinners::Dots, "Creating PR ...".into());
 
-    let pr = aws
-        .create_pull_request(
-            repository.clone(),
-            title.clone(),
-            description,
-            branch,
-            base_branch,
-        )
-        .await?;
+    let pr = aws::create_pull_request(
+        repository.clone(),
+        title.clone(),
+        description,
+        branch,
+        base_branch,
+        ctx.profile,
+    )
+    .await?;
 
     let pr_link = format!("https://{region}.console.aws.amazon.com/codesuite/codecommit/repositories/{repository}/pull-requests/{pr_id}/details", pr_id = pr.pull_request.id);
 
