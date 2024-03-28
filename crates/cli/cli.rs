@@ -76,6 +76,11 @@ pub enum TicketCommands {
         id_or_url: Option<String>,
     },
 
+    /// Print userStory link
+    GetBranch {
+        id_or_url: String,
+    },
+
     GetId {
         url: Option<String>,
     },
@@ -151,6 +156,7 @@ pub enum Commands {
         subcommands: ConfigCommands,
     },
 
+    #[cfg(debug_assertions)]
     CacheTest,
 
     /// Release

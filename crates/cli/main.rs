@@ -152,8 +152,6 @@ async fn main() -> Result<()> {
             } => {
                 let all_my_tickets = target_process::get_current_sprint_open_tasks().await?;
 
-                print_dbg!(&all_my_tickets);
-
                 let list: Vec<String> = all_my_tickets
                     .iter()
                     .filter_map(|t| {
@@ -285,6 +283,12 @@ async fn main() -> Result<()> {
                 let assignable = target_process::get_assignable(id).await?;
 
                 println!("{}", assignable.get_link());
+            }
+            cli::TicketCommands::GetBranch { id_or_url } => {
+                let id = utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url);
+                let assignable = target_process::get_assignable(id).await?;
+
+                println!("{}", assignable.get_branch());
             }
             cli::TicketCommands::GetId { url } => {
                 let id = if let Some(url) = url {
