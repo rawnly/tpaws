@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct CurrentUser {
     pub id: usize,
@@ -12,7 +12,7 @@ pub struct CurrentUser {
     pub role: Role,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Clone, Serialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Role {
     pub id: usize,

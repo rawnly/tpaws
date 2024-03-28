@@ -1,7 +1,7 @@
 use super::models::*;
 use crate::models::v2::assignable::Assignable as AssignableV2;
 
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "PascalCase")]
 pub struct Assignable {
     /// UserStory - Bug
