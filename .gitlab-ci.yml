@@ -21,7 +21,8 @@ build-release:
     when: on_success
     access: all
     paths: 
-      - *.tar.gz
+      - tpaws.tar.gz
+      - tpaws.rb
 
 # release-job:
 #   stage: release
