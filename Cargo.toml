@@ -1,15 +1,10 @@
 [package]
-name = "satispay-cli"
+name = "tpaws"
 version = "0.1.0"
 edition = "2021"
-build = "build.rs"
 
 [[bin]]
 name = "tpaws"
-path = "crates/cli/main.rs"
-
-[[bin]]
-name = "satis"
 path = "crates/cli/main.rs"
 
 [workspace]
