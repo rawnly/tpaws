@@ -1,0 +1,66 @@
+[package]
+name = "tpaws"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "tpaws"
+path = "crates/cli/main.rs"
+
+[workspace]
+members = [
+  "crates/target_process",
+  "crates/config",
+  "crates/commands",
+  "crates/slack",
+]
+
+[profile.release]
+debug = 1
+
+[profile.release-lto]
+inherits = "release"
+opt-level = 3
+strip = "symbols"
+debug = "none"
+debug-assertions = false
+overflow-checks = false
+lto = "fat"
+panic = "abort"
+incremental = false
+codegen-units = 1
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[build-dependencies]
+regex = "*"
+
+
+[dependencies]
+anyhow = "1.0.80"
+clap = { version = "4.5.1", features = ["derive"] }
+color-eyre = "0.6.2"
+colored = { version = "2.1.0" }
+human-panic = "1.2.3"
+inquire = "0.6.2"
+postage = { version = "0.5.0", features = ["futures"] }
+serde_json = "1.0.113"
+spinners = "4.1.1"
+thiserror = "1.0.57"
+tokio = { version = "1.36.0", features = ["full"] }
+slack = { path = "./crates/slack" }
+commands = { path = "./crates/commands" }
+config = { path = "./crates/config" }
+target_process = { path = "./crates/target_process" }
+regex = "1.10.3"
+strum = { version = "0.26.1", features = ["derive"] }
+termimad = "0.29.1"
+mdka = "1.2.4"
+futures = "0.3.30"
+chrono = "0.4.35"
+serde = { version = "1.0.197", features = ["derive"] }
+cached = { version = "0.49.2", features = [
+  "async",
+  "async_tokio_rt_multi_thread",
+  "serde",
+  "serde_json",
+] }
