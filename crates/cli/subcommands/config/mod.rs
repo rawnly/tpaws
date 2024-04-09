@@ -6,7 +6,7 @@ use inquire::Text;
 
 pub async fn reset() -> Result<()> {
     if !target_process::is_configured() {
-        let prompt = format!("Invalid configuration detected.  Do you want to fix this now?",);
+        let prompt = "Invalid configuration detected.  Do you want to fix this now?".to_string();
 
         let fix = inquire::Confirm::new(&prompt).with_default(true).prompt()?;
 
