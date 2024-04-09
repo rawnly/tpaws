@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    paths-ignore:
+      - "**.md"
+      - "**.rb"
+      - "Makefile"
+      - ".idea/**/*"
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "Makefile"
+      - "**.rb"
+      - ".idea/**/*"
+
+jobs:
+  check:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo check
+  fmt:
+    name: FMT
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup component add rustfmt
+      - run: cargo fmt --all -- --check
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup component add clippy
+      - run: cargo clippy -- -D warnings
