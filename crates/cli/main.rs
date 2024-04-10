@@ -63,6 +63,11 @@ async fn main() -> Result<()> {
     let config = Config::read().await?;
     let local_config = ProjectConfig::read().await;
 
+    if !target_process::has_token() {
+        println!("No env for {}", target_process::ENV_NAME);
+        return Ok(());
+    }
+
     let create_pr_args = args.clone();
 
     match args.command {

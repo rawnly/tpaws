@@ -1,4 +1,4 @@
-use color_eyre::{eyre::eyre, Result};
+use color_eyre::{eyre::eyre, Context, Result};
 use colored::*;
 use commands::git;
 use config::{util::inject_env, Config};
@@ -24,7 +24,10 @@ pub async fn reset() -> Result<()> {
         inject_env(target_process::ENV_NAME, &tpurl).await?;
     }
 
-    let me = target_process::get_me().await?;
+    let me = match target_process::get_me().await {
+        Ok(me) => me,
+        Err(e) => panic!("Unable to retrive current user: {:?}", e),
+    };
 
     let name = git::config("user.name".to_string())
         .await
