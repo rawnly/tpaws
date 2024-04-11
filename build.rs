@@ -1,11 +1,7 @@
 use regex::Regex;
+use std::fs::{self, File};
 use std::io::{self, Write};
-use std::process::Command;
 use std::str::FromStr;
-use std::{
-    fs::{self, File},
-    process::Stdio,
-};
 
 #[derive(Debug)]
 enum Profile {

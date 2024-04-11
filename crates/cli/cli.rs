@@ -87,6 +87,18 @@ pub enum TicketCommands {
     GetId {
         url: Option<String>,
     },
+
+    GenerateChangelog {
+        from: usize,
+
+        to: Option<usize>,
+
+        #[arg(long, short = 'P')]
+        project: String,
+
+        #[arg(long, short = 'p')]
+        prefix: String,
+    },
 }
 
 #[derive(Subcommand, strum::Display, Debug, Clone)]

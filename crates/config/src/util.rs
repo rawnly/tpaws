@@ -66,7 +66,7 @@ export {key}={value}
             "#
     );
 
-    return Ok(());
+    Ok(())
 }
 
 #[cfg(test)]

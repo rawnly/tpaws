@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use cached::proc_macro::cached;
 
 use color_eyre::eyre::Context;
@@ -49,7 +51,7 @@ pub trait Parameter {
     fn into() -> (String, String);
 }
 
-pub const ENV_NAME: &'static str = "TARGET_PROCESS_API_BASE_URL";
+pub const ENV_NAME: &str = "TARGET_PROCESS_API_BASE_URL";
 
 pub fn is_configured() -> bool {
     let value = std::env::var(ENV_NAME).ok();
@@ -161,6 +163,141 @@ where
         .map_err(|e| ApiError::GenericError(e.to_string()))?;
 
     serde_json::from_str(&text).map_err(|e| ApiError::Json(e.to_string()))
+}
+
+#[derive(Debug)]
+enum Row {
+    Title(String),
+    Log(String, String),
+}
+
+impl ToString for Row {
+    fn to_string(&self) -> String {
+        let base_url = get_base_url();
+
+        match self {
+            Self::Title(version) => format!("## {version}"),
+            Self::Log(id, name) => format!("- [{id}]({base_url}/entity/{id}) {name}"),
+        }
+    }
+}
+
+#[cached]
+pub async fn generate_changelog(
+    from: usize,
+    to: Option<usize>,
+    project_name: String,
+    release_prefix: String,
+) -> Result<Vec<String>> {
+    let to = to.unwrap_or(from);
+
+    let prefix = Arc::new(release_prefix);
+    let project = Arc::new(project_name);
+    let range = (from..to + 1).rev();
+    let rows: Arc<Mutex<Vec<Row>>> = Arc::new(Mutex::new(Vec::new()));
+
+    for minor in range {
+        let rows = Arc::clone(&rows);
+        let project = Arc::clone(&project);
+        let prefix = Arc::clone(&prefix);
+        let prefix = Arc::clone(&prefix);
+
+        tokio::spawn(async move {
+            let version = Arc::new(format!("1.{minor}"));
+
+            for patch in 0..10 {
+                // let rows = Arc::clone(&rows);
+                let project = Arc::clone(&project);
+                let prefix = Arc::clone(&prefix);
+                let version = Arc::clone(&version);
+
+                let version = format!("{version}.{patch}");
+
+                let elements = get_tag_tickets(project, prefix, version.clone())
+                    .await
+                    .unwrap();
+
+                if elements.is_empty() {
+                    return;
+                }
+
+                if let Ok(mut v) = rows.lock() {
+                    let row = Row::Title(version);
+                    v.push(row);
+
+                    for (id, name) in elements {
+                        let row = Row::Log(id, name);
+                        v.push(row);
+                    }
+                }
+            }
+        })
+        .await
+        .map_err(|e| ApiError::GenericError(e.to_string()))?;
+    }
+
+    let rows = rows.lock().unwrap();
+    let strings: Vec<String> = rows.iter().map(|row| row.to_string()).collect();
+
+    Ok(strings)
+}
+
+#[cached]
+async fn get_tag_tickets(
+    project: Arc<String>,
+    release_prefix: Arc<String>,
+    version: String,
+) -> Result<Vec<(String, String)>> {
+    let mut data = vec![];
+    let filter =
+        format!("(Project.Name='{project}')and(Release.Name='{release_prefix}@{version}')");
+
+    let client = reqwest::Client::new();
+    let response = client
+        .get(format!("{}/api/v2/assignables", get_base_url()))
+        .header("Accept", "application/json")
+        .query(&[
+            ("access_token", get_token()?),
+            ("where", filter),
+            ("select", "{id,name}".to_string()),
+        ])
+        .send()
+        .await
+        .map_err(|e| ApiError::GenericError(e.to_string()))?;
+
+    let json: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| ApiError::Json(e.to_string()))?;
+
+    if let Some(response) = json.as_object() {
+        if let Some(v) = response.get("items") {
+            if let Some(items) = v.as_array() {
+                for item in items {
+                    if let Some(item_obj) = item.as_object() {
+                        let id = item_obj.get("id").unwrap();
+                        let name = item_obj.get("name").unwrap();
+
+                        data.push((id.to_string(), name.to_string()));
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(data)
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct AssignablesList {
+    pub items: serde_json::Value,
+}
+
+#[cached]
+pub async fn get_assignables(filter: String, select: String) -> Result<AssignablesList> {
+    let url = String::from("/v2/assignables");
+
+    fetch(url, [Param::Filter(filter), Param::Select(select)]).await
 }
 
 #[cached]

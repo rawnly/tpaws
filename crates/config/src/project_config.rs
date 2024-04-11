@@ -10,7 +10,7 @@ pub struct ProjectConfig {
     pub tp_name: Option<String>,
 }
 
-const FILE_PATH: &'static str = "./tpaws.json";
+const FILE_PATH: &str = "./tpaws.json";
 
 /// FS Methods
 impl ProjectConfig {

@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 
-mod assignable;
+mod assignables;
 mod models;
 
-pub use assignable::*;
+pub use assignables::*;
 pub use models::*;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -28,13 +28,13 @@ impl TryFrom<usize> for EntityStates {
     }
 }
 
-impl Into<usize> for EntityStates {
-    fn into(self) -> usize {
-        match self {
-            Self::Open => 73,
-            Self::Planned => 74,
-            Self::InProgress => 75,
-            Self::InStaging => 127,
+impl From<EntityStates> for usize {
+    fn from(value: EntityStates) -> Self {
+        match value {
+            EntityStates::Open => 73,
+            EntityStates::Planned => 74,
+            EntityStates::InProgress => 75,
+            EntityStates::InStaging => 127,
         }
     }
 }

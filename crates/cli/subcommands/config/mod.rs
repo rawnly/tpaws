@@ -1,4 +1,4 @@
-use color_eyre::{eyre::eyre, Context, Result};
+use color_eyre::{eyre::eyre, Result};
 use colored::*;
 use commands::git;
 use config::{util::inject_env, Config};

@@ -314,6 +314,24 @@ async fn main() -> Result<()> {
 
                 println!("{id}");
             }
+            cli::TicketCommands::GenerateChangelog {
+                from,
+                to,
+                prefix,
+                project,
+            } => {
+                let changelog =
+                    target_process::generate_changelog(from, to, project, prefix).await?;
+
+                if changelog.is_empty() {
+                    println!("Empty changelog :(");
+                    return Ok(());
+                }
+
+                for str in changelog {
+                    println!("{str}")
+                }
+            }
         },
         cli::Commands::Config { subcommands } => match subcommands {
             cli::ConfigCommands::Reset => subcommands::config::reset().await?,

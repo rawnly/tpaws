@@ -23,11 +23,11 @@ pub struct IdAndName {
 pub type EntityState = IdAndName;
 pub type EntityType = IdAndName;
 
-impl Into<crate::models::v1::assignable::IdAndName> for IdAndName {
-    fn into(self) -> crate::models::v1::assignable::IdAndName {
-        crate::models::v1::assignable::IdAndName {
-            id: self.id,
-            name: self.name,
+impl From<IdAndName> for crate::models::v1::assignable::IdAndName {
+    fn from(val: IdAndName) -> Self {
+        Self {
+            id: val.id,
+            name: val.name,
         }
     }
 }
