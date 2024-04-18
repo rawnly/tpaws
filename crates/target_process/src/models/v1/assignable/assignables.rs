@@ -1,5 +1,8 @@
 use super::models::*;
-use crate::{get_base_url, models::v2::assignable::Assignable as AssignableV2};
+use crate::{
+    get_base_url,
+    models::{v1::assignable::Project, v2::assignable::Assignable as AssignableV2},
+};
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "PascalCase")]
@@ -11,6 +14,9 @@ pub struct Assignable {
     pub description: Option<String>,
     pub entity_state: EntityState,
     pub entity_type: EntityType,
+
+    /// Project?
+    pub project: Project,
 }
 
 impl Assignable {
@@ -50,6 +56,7 @@ impl From<AssignableV2> for Assignable {
             description,
             entity_type,
             entity_state,
+            project,
         }: AssignableV2,
     ) -> Self {
         Self {
@@ -59,6 +66,11 @@ impl From<AssignableV2> for Assignable {
             resource_type,
             entity_state: entity_state.into(),
             entity_type: entity_type.into(),
+            project: Project {
+                id: project.id,
+                resource_type: project.resource_type,
+                name: project.name,
+            },
         }
     }
 }

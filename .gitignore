@@ -4,3 +4,5 @@
 *.rb
 
 !formula_template.rb
+
+.env

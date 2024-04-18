@@ -1,6 +1,29 @@
 use crate::command;
 use color_eyre::Result;
 
+#[derive(Clone)]
+pub struct Branch(pub String);
+
+impl ToString for Branch {
+    fn to_string(&self) -> String {
+        self.0.clone()
+    }
+}
+
+impl Branch {
+    pub fn is_feature(&self) -> bool {
+        self.0.starts_with("feature/")
+    }
+
+    pub fn is_hotfix(&self) -> bool {
+        self.0.starts_with("hotfix/")
+    }
+
+    pub fn is_release(&self) -> bool {
+        self.0.starts_with("release/")
+    }
+}
+
 pub async fn force_push_to_env(remote: &str, env: &str) -> Result<()> {
     let branch = command!("git", "rev-parse", "--abbrev-ref", "HEAD")
         .output()
@@ -34,6 +57,7 @@ pub async fn push_tags() -> Result<()> {
     Ok(())
 }
 
+#[deprecated = "use `current_branch_v2` instead"]
 pub async fn current_branch() -> Result<String> {
     let bytes = command!("git", "branch", "--show-current")
         .output()
@@ -44,6 +68,18 @@ pub async fn current_branch() -> Result<String> {
     let branch = branch.trim();
 
     Ok(branch.to_string())
+}
+
+pub async fn current_branch_v2() -> Result<Branch> {
+    let bytes = command!("git", "branch", "--show-current")
+        .output()
+        .await?
+        .stdout;
+
+    let branch = String::from_utf8(bytes)?;
+    let branch = branch.trim();
+
+    Ok(Branch(branch.to_string()))
 }
 
 pub async fn get_remote_url(remote: &str) -> Result<String> {

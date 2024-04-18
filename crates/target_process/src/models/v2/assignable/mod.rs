@@ -11,6 +11,7 @@ pub struct Assignable {
     pub description: Option<String>,
     pub entity_type: EntityType,
     pub entity_state: EntityState,
+    pub project: Project,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
@@ -18,6 +19,14 @@ pub struct Assignable {
 pub struct IdAndName {
     pub id: usize,
     pub name: String,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Project {
+    pub id: usize,
+    pub name: String,
+    pub resource_type: String,
 }
 
 pub type EntityState = IdAndName;

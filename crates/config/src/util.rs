@@ -31,6 +31,13 @@ impl ToString for Shell {
     }
 }
 
+pub fn get_user_id() -> Option<String> {
+    let username = std::env::var("USER").ok()?;
+    let hostname = std::env::var("HOST").ok()?;
+
+    Some(sha256::digest(format!("{}:{}", username, hostname)))
+}
+
 // we don't return error if the write operation fails
 // instead show a warning message to the user
 pub async fn inject_env(key: &str, value: &str) -> Result<()> {
@@ -74,6 +81,8 @@ mod test {
     use std::env::temp_dir;
     use tokio::fs;
 
+    use crate::util::get_user_id;
+
     /// Test variable injection with `ZSH` shell
     #[tokio::test]
     async fn test_inject_env_zsh() {
@@ -84,8 +93,16 @@ mod test {
         fs::write(&rcfile, "A=B").await.unwrap();
 
         std::env::set_var("SHELL", "/bin/zsh");
-        std::env::set_var("HOME", home.to_str().unwrap().to_string());
+        std::env::set_var("HOME", home.to_str().unwrap());
 
-        super::inject_env("foo".into(), "bar".into()).await.unwrap();
+        super::inject_env("foo", "bar").await.unwrap();
+    }
+
+    #[test]
+    fn test_user_id() {
+        let id = get_user_id();
+        let id2 = get_user_id();
+
+        assert_eq!(id, id2)
     }
 }

@@ -12,6 +12,8 @@ use models::{
 use reqwest::header::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+use crate::models::v1::assignable::Project;
+
 pub mod errors;
 pub mod models;
 
@@ -294,6 +296,13 @@ pub struct AssignablesList {
 }
 
 #[cached]
+pub async fn get_project(id: String) -> Result<Project> {
+    let url = format!("/v1/Projects/{id}");
+
+    fetch(url, []).await
+}
+
+#[cached]
 pub async fn get_assignables(filter: String, select: String) -> Result<AssignablesList> {
     let url = String::from("/v2/assignables");
 
@@ -353,6 +362,22 @@ pub async fn update_entity_state(
     };
 
     post(format!("/v1/Assignables/{assignable_id}"), payload).await
+}
+
+#[derive(strum::Display, PartialEq, Eq, Clone, Hash)]
+pub enum SearchOperator {
+    Eq,
+    Contains,
+}
+
+#[cached]
+pub async fn search_project(name: String, operator: SearchOperator) -> Result<Vec<Project>> {
+    let filter = format!("Name {operator} '{name}'");
+    let url = "/v1/Projects".to_string();
+
+    let data: ResponseListV1<Project> = fetch(url, [Param::Filter(filter)]).await?;
+
+    Ok(data.items)
 }
 
 #[derive(Serialize, Debug)]

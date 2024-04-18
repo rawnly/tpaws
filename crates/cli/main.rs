@@ -9,10 +9,10 @@ use commands::{
     git::{self},
     spawn_command,
 };
-use config::{Config, ProjectConfig};
+use config::{util::get_user_id, Config, ProjectConfig};
 use human_panic::setup_panic;
 use mdka::from_html;
-use target_process::models::EntityStates;
+use target_process::{models::EntityStates, SearchOperator};
 
 use crate::{context::GlobalContext, manifests::node::PackageJson};
 
@@ -34,6 +34,22 @@ fn is_slack_enabled(slack_flag: bool) -> bool {
 #[tokio::main]
 #[allow(unreachable_code, unused_variables)]
 async fn main() -> Result<()> {
+    let _guard = sentry::init((
+        env!("SENTRY_DSN"),
+        sentry::ClientOptions {
+            release: sentry::release_name!(),
+            traces_sample_rate: 1.0,
+            ..Default::default()
+        },
+    ));
+
+    sentry::configure_scope(|scope| {
+        scope.set_user(Some(sentry::User {
+            id: get_user_id(),
+            ..Default::default()
+        }))
+    });
+
     setup_panic!();
 
     #[cfg(debug_assertions)]
@@ -232,7 +248,7 @@ async fn main() -> Result<()> {
                 let id = if let Some(id_or_url) = id_or_url {
                     utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url)
                 } else {
-                    let branch = git::current_branch().await?;
+                    let branch = git::current_branch_v2().await?.0;
 
                     utils::get_ticket_id_from_branch(branch)
                         .ok_or_eyre("Unable to extract userStory ID")?
@@ -251,7 +267,7 @@ async fn main() -> Result<()> {
                 let id = if let Some(id_or_url) = id_or_url {
                     utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url)
                 } else {
-                    let branch = git::current_branch().await?;
+                    let branch = git::current_branch_v2().await?.0;
 
                     utils::get_ticket_id_from_branch(branch)
                         .ok_or_eyre("Unable to extract userStory ID")?
@@ -286,7 +302,7 @@ async fn main() -> Result<()> {
                 let id = if let Some(id_or_url) = id_or_url {
                     utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url)
                 } else {
-                    let branch = git::current_branch().await?;
+                    let branch = git::current_branch_v2().await?.0;
 
                     utils::get_ticket_id_from_branch(branch)
                         .ok_or_eyre("Unable to extract userStory ID")?
@@ -306,13 +322,83 @@ async fn main() -> Result<()> {
                 let id = if let Some(url) = url {
                     utils::extract_id_from_url(url.clone()).unwrap_or(url)
                 } else {
-                    let branch = git::current_branch().await?;
+                    let branch = git::current_branch_v2().await?.0;
 
                     utils::get_ticket_id_from_branch(branch)
                         .ok_or_eyre("Unable to extract userStory ID")?
                 };
 
                 println!("{id}");
+            }
+            cli::TicketCommands::GetProject { id, json, name } => {
+                let branch = git::current_branch_v2().await?;
+
+                match id {
+                    Some(id) => {
+                        let project = target_process::get_project(id).await?;
+
+                        if json {
+                            println!("{}", serde_json::to_string_pretty(&project)?);
+                            return Ok(());
+                        }
+
+                        println!("Id: {}", project.id);
+                        println!("Name: {}", project.name);
+                        println!(
+                            "Url: {}/entities/{}",
+                            target_process::get_base_url(),
+                            project.id
+                        );
+                    }
+                    None => match name {
+                        Some(name) => {
+                            let projects =
+                                target_process::search_project(name, SearchOperator::Eq).await?;
+                            let project = projects.first().ok_or_eyre("failed to find project")?;
+
+                            if json {
+                                let json_pretty = serde_json::to_string_pretty(&project)?;
+                                println!("{json_pretty}");
+                                return Ok(());
+                            }
+
+                            println!("Id: {}", project.id);
+                            println!("Name: {}", project.name);
+                            println!(
+                                "Url: {}/entities/{}",
+                                target_process::get_base_url(),
+                                project.id
+                            );
+
+                            return Ok(());
+                        }
+                        None => {
+                            if !branch.is_feature() {
+                                println!("Please make sure to be in a feature branch or pass a valid project id or name");
+                                return Ok(());
+                            }
+
+                            let assignable_id = utils::get_ticket_id_from_branch(branch.0)
+                                .ok_or_eyre("unable to extract user story ID")?;
+                            let assignable = target_process::get_assignable(assignable_id).await?;
+                            let project = assignable.project;
+
+                            if json {
+                                let json_pretty = serde_json::to_string_pretty(&project)?;
+                                println!("{json_pretty}");
+                                return Ok(());
+                            }
+
+                            println!("Id: {}", project.id);
+                            println!("Name: {}", project.name);
+                            println!(
+                                "Url: {}/entities/{}",
+                                target_process::get_base_url(),
+                                project.id
+                            );
+                        }
+                    },
+                }
             }
             cli::TicketCommands::GenerateChangelog {
                 from,

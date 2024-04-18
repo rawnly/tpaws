@@ -11,3 +11,11 @@ pub use models::*;
 pub struct ID {
     pub id: usize,
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "PascalCase")]
+pub struct Project {
+    pub id: usize,
+    pub name: String,
+    pub resource_type: String,
+}

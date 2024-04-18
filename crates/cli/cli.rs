@@ -88,6 +88,18 @@ pub enum TicketCommands {
         url: Option<String>,
     },
 
+    /// Print project details
+    GetProject {
+        #[arg(long)]
+        id: Option<String>,
+
+        #[arg(long)]
+        name: Option<String>,
+
+        #[arg(long)]
+        json: bool,
+    },
+
     GenerateChangelog {
         from: usize,
 
