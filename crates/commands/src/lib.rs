@@ -55,9 +55,7 @@ macro_rules! command {
             )*
         }
 
-        if cfg!(debug_assertions) {
-            dbg!(&args);
-        }
+        global_utils::print_dbg!(&args);
 
         tokio::process::Command::new($command)
         .args(&args.clone())
@@ -74,9 +72,7 @@ macro_rules! spawn_command {
         {
             args = Vec::new();
             $( args.push($args); )*
-            if cfg!(debug_assertions) {
-                dbg!(&args);
-            }
+            global_utils::print_dbg!(&args);
         }
 
         tokio::process::Command::new($command).args(&args.clone()).spawn()

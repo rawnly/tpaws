@@ -2,8 +2,8 @@ use clap::{Parser, Subcommand};
 use commands::aws::PullRequestStatus;
 
 #[derive(Parser, Debug, Clone)]
-#[command(version, about, long_about = None)]
-#[command(propagate_version = true)]
+#[command(about, long_about = None)]
+// #[command(propagate_version = true)]
 pub struct Args {
     #[command(subcommand)]
     pub command: Commands,
@@ -15,6 +15,14 @@ pub struct Args {
     /// do not print any output/spinner
     #[arg(long, global = true)]
     pub quiet: bool,
+
+    /// do not print any output/spinner
+    #[arg(long, global = true)]
+    pub debug: bool,
+
+    /// print current version
+    #[arg(long, short = 'v')]
+    pub version: bool,
 }
 
 #[derive(Debug, Clone, strum::Display, strum::EnumString)]

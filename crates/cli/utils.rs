@@ -118,17 +118,6 @@ pub(crate) fn extract_id_from_url(url: String) -> Option<String> {
     None
 }
 
-#[macro_export]
-macro_rules! print_dbg {
-    ( $( $x:expr ),* ) => {
-        $(
-            if cfg!(debug_assertions) {
-                dbg!($x);
-            }
-        )*
-    };
-}
-
 #[cfg(test)]
 mod test {
     #[test]

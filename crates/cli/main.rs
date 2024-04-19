@@ -1,3 +1,4 @@
+use clap::CommandFactory;
 use clap::Parser;
 use color_eyre::{
     eyre::{eyre, OptionExt},
@@ -14,7 +15,7 @@ use human_panic::setup_panic;
 use mdka::from_html;
 use target_process::{models::EntityStates, SearchOperator};
 
-use crate::{context::GlobalContext, manifests::node::PackageJson};
+use crate::{cli::Args, context::GlobalContext, manifests::node::PackageJson};
 
 mod cli;
 mod context;
@@ -22,6 +23,11 @@ mod costants;
 mod manifests;
 mod subcommands;
 mod utils;
+
+fn print_help() {
+    let mut cmd = Args::command();
+    cmd.print_help();
+}
 
 fn is_slack_enabled(slack_flag: bool) -> bool {
     if cfg!(debug_assertions) {
@@ -85,6 +91,10 @@ async fn main() -> Result<()> {
     }
 
     let create_pr_args = args.clone();
+
+    if args.debug {
+        std::env::set_var("TPAWS_DEBUG", args.debug.to_string());
+    }
 
     match args.command {
         cli::Commands::PullRequest {
@@ -199,7 +209,7 @@ async fn main() -> Result<()> {
                     Some(v) => v,
                     None => {
                         if list.is_empty() {
-                            dbg!(&all_my_tickets);
+                            global_utils::print_dbg!(&all_my_tickets);
                             println!("No tickets are available, please provide an id");
                             return Ok(());
                         }

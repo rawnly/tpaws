@@ -1,6 +1,7 @@
 use regex::Regex;
 use std::fs::{self, File};
 use std::io::{self, Write};
+use std::process::Command;
 use std::str::FromStr;
 
 #[derive(Debug)]
@@ -41,8 +42,21 @@ fn get_profile() -> Profile {
     Profile::from_str(&profile_str).unwrap()
 }
 
+fn last_commit() -> String {
+    let output = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .unwrap()
+        .stdout;
+
+    String::from_utf8(output).unwrap()
+}
+
 fn main() -> io::Result<()> {
     let profile = get_profile();
+    let commit = last_commit();
+
+    std::env::set_var("TPAWS_COMMIT_ID", commit);
 
     if matches!(profile, Profile::Release) {
         println!("cargo:warning=Building formula");

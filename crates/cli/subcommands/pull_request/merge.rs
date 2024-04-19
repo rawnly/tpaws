@@ -6,6 +6,7 @@ use commands::{
     aws::{self, PullRequestResponse, PullRequestStatus},
     git,
 };
+use global_utils::print_dbg;
 use spinners::{Spinner, Spinners};
 use target_process::models::EntityStates;
 use tokio::task::JoinSet;
@@ -87,7 +88,7 @@ pub async fn merge(
         }
     };
 
-    dbg!(id.clone());
+    global_utils::print_dbg!(id.clone());
 
     let pr = utils::get_pr_id(
         ctx.profile.clone(),
@@ -210,7 +211,7 @@ pub async fn merge(
             spinner.stop_and_persist("✅", "Failed to update ticket status".to_string());
         }
 
-        dbg!(&updated_pr);
+        global_utils::print_dbg!(&updated_pr);
 
         return Ok(());
     }
