@@ -11,11 +11,15 @@ use commands::{
     spawn_command,
 };
 use config::{util::get_user_id, Config, ProjectConfig};
+use global_utils::print_dbg;
 use human_panic::setup_panic;
 use mdka::from_html;
 use target_process::{models::EntityStates, SearchOperator};
 
-use crate::{cli::Args, context::GlobalContext, manifests::node::PackageJson};
+use crate::{
+    cli::Args, context::GlobalContext, manifests::node::PackageJson,
+    subcommands::release::ReleaseKind,
+};
 
 mod cli;
 mod context;
@@ -24,9 +28,11 @@ mod manifests;
 mod subcommands;
 mod utils;
 
-fn print_help() {
+fn print_help() -> Result<()> {
     let mut cmd = Args::command();
-    cmd.print_help();
+    cmd.print_help()?;
+
+    Ok(())
 }
 
 fn is_slack_enabled(slack_flag: bool) -> bool {
@@ -61,6 +67,21 @@ async fn main() -> Result<()> {
     #[cfg(debug_assertions)]
     color_eyre::install()?;
 
+    let args = cli::Args::parse();
+
+    if args.version {
+        println!("{}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
+    if args.debug {
+        std::env::set_var("TPAWS_DEBUG", args.debug.to_string());
+    }
+
+    if args.command.is_none() {
+        return print_help();
+    }
+
     if !commands::is_installed!("aws") {
         println!("Useful links:");
         println!(
@@ -72,8 +93,6 @@ async fn main() -> Result<()> {
 
         return Ok(());
     }
-
-    let args = cli::Args::parse();
 
     if Config::is_first_run()? {
         println!("Please configure the CLI before continue");
@@ -92,17 +111,13 @@ async fn main() -> Result<()> {
 
     let create_pr_args = args.clone();
 
-    if args.debug {
-        std::env::set_var("TPAWS_DEBUG", args.debug.to_string());
-    }
-
-    match args.command {
+    match args.command.unwrap() {
         cli::Commands::PullRequest {
             subcommands,
             profile,
             ..
         } => {
-            let branch = git::current_branch().await?;
+            let branch = git::current_branch_v2().await?.0;
             let repository = utils::get_repository().await?;
 
             let region = aws::get_region(profile.clone()).await?;
@@ -438,17 +453,34 @@ async fn main() -> Result<()> {
             }
 
             let pkg = PackageJson::read().await?;
-            let branch = git::current_branch().await?;
+            let branch = git::current_branch_v2().await?;
 
             match subcommands {
-                cli::ReleaseCommands::Start => {
-                    subcommands::release::start(&pkg).await?;
+                cli::ReleaseCommands::Start {
+                    major,
+                    patch,
+                    minor,
+                } => {
+                    let kind: ReleaseKind = match (major, minor, patch) {
+                        (_, _, true) => ReleaseKind::Patch,
+                        (true, _, _) => ReleaseKind::Major,
+                        (_, true, _) => ReleaseKind::Minor,
+                        _ => ReleaseKind::Minor,
+                    };
+
+                    print_dbg!(&kind, major, minor, patch);
+
+                    subcommands::release::start(&pkg, kind).await?;
                 }
-                cli::ReleaseCommands::Push { target } => {
-                    subcommands::release::push(target).await?;
+                cli::ReleaseCommands::Push {
+                    target,
+                    pipeline_name: name,
+                    profile,
+                } => {
+                    subcommands::release::push(target, name, profile).await?;
                 }
                 cli::ReleaseCommands::Finish => {
-                    subcommands::release::finish(&pkg, &branch).await?;
+                    subcommands::release::finish(&pkg, &branch.0).await?;
                 }
             }
         }

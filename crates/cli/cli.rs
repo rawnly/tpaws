@@ -6,7 +6,7 @@ use commands::aws::PullRequestStatus;
 // #[command(propagate_version = true)]
 pub struct Args {
     #[command(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
 
     /// do not perform any action
     #[arg(long, global = true)]
@@ -34,10 +34,27 @@ pub enum ReleasePushTarget {
 
 #[derive(Subcommand, strum::Display, Debug, Clone)]
 pub enum ReleaseCommands {
-    Start,
+    Start {
+        #[arg(long)]
+        patch: bool,
+
+        #[arg(long, default_value = "true")]
+        minor: bool,
+
+        #[arg(long)]
+        major: bool,
+    },
     Push {
         #[arg(long, short, default_value = "All")]
         target: ReleasePushTarget,
+
+        /// pipeline to trigger
+        #[arg(long, short = 'n')]
+        pipeline_name: Option<String>,
+
+        /// aws profile
+        #[arg(long, default_value = "default")]
+        profile: String,
     },
     Finish,
 }
@@ -78,23 +95,16 @@ pub enum TicketCommands {
         project: Option<String>,
     },
     /// Run `git flow finish`
-    Finish {
-        id_or_url: Option<String>,
-    },
+    Finish { id_or_url: Option<String> },
 
     /// Print userStory link
-    Link {
-        id_or_url: Option<String>,
-    },
+    Link { id_or_url: Option<String> },
 
     /// Print userStory link
-    GetBranch {
-        id_or_url: String,
-    },
+    GetBranch { id_or_url: String },
 
-    GetId {
-        url: Option<String>,
-    },
+    /// Print userStory ID
+    GetId { url: Option<String> },
 
     /// Print project details
     GetProject {
@@ -108,6 +118,8 @@ pub enum TicketCommands {
         json: bool,
     },
 
+    /// Generate a changelog from a targetprocess release
+    #[clap(alias = "changelog")]
     GenerateChangelog {
         from: usize,
 

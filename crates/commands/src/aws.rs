@@ -375,3 +375,24 @@ pub async fn merge_pr_by_squash(
     let raw_stderr = String::from_utf8(output.stderr)?;
     Err(CommandError::IOError(raw_stderr))
 }
+
+pub async fn start_pipeline_execution(name: String, profile: String) -> Result<()> {
+    command!(
+        "aws",
+        "codepipeline",
+        "start-pipeline-execution",
+        "--name",
+        &name,
+        "--profile",
+        &profile,
+        "--output",
+        "json",
+        "--color",
+        "off"
+    )
+    .output()
+    .await
+    .map_err(CommandError::from_io)?;
+
+    Ok(())
+}

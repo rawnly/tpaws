@@ -1,9 +1,9 @@
 use color_eyre::{eyre::Context, Result};
-use commands::git;
+use commands::{aws, git};
 
 use crate::cli::ReleasePushTarget;
 
-pub async fn push(target: ReleasePushTarget) -> Result<()> {
+pub async fn push(target: ReleasePushTarget, name: Option<String>, profile: String) -> Result<()> {
     match target {
         ReleasePushTarget::Prod => {
             git::force_push_to_env("origin", "prod")
@@ -24,6 +24,12 @@ pub async fn push(target: ReleasePushTarget) -> Result<()> {
                 .await
                 .context("failed to push to prod")?;
         }
+    }
+
+    if let Some(name) = name {
+        println!();
+        aws::start_pipeline_execution(name, profile).await?;
+        println!("Pipeline triggered.");
     }
 
     Ok(())

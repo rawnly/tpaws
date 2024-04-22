@@ -17,9 +17,15 @@ impl Version {
         self.patch = 0;
     }
 
-    // pub fn bump_patch(&mut self) {
-    //     self.patch += 1
-    // }
+    pub fn bump_patch(&mut self) {
+        self.patch += 1
+    }
+
+    pub fn bump_major(&mut self) {
+        self.patch = 0;
+        self.minor = 0;
+        self.major += 1;
+    }
 }
 
 impl ToString for Version {
