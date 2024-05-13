@@ -18,7 +18,7 @@ use target_process::{models::EntityStates, SearchOperator};
 
 use crate::{
     cli::Args, context::GlobalContext, manifests::node::PackageJson,
-    subcommands::release::ReleaseKind,
+    subcommands::release::ReleaseKind, telemetry::track_event,
 };
 
 mod cli;
@@ -26,6 +26,7 @@ mod context;
 mod costants;
 mod manifests;
 mod subcommands;
+mod telemetry;
 mod utils;
 
 fn print_help() -> Result<()> {
@@ -46,6 +47,10 @@ fn is_slack_enabled(slack_flag: bool) -> bool {
 #[tokio::main]
 #[allow(unreachable_code, unused_variables)]
 async fn main() -> Result<()> {
+    telemetry::init()?;
+    let axiom = axiom_rs::Client::new()?;
+
+    //  TODO: replace with axiom
     let _guard = sentry::init((
         env!("SENTRY_DSN"),
         sentry::ClientOptions {
@@ -61,6 +66,7 @@ async fn main() -> Result<()> {
             ..Default::default()
         }))
     });
+    // end TODO
 
     setup_panic!();
 
@@ -97,6 +103,8 @@ async fn main() -> Result<()> {
     if Config::is_first_run()? {
         println!("Please configure the CLI before continue");
         println!();
+
+        telemetry::track_event(telemetry::Event::Installation, Some(""))?;
 
         subcommands::config::reset().await?;
     }

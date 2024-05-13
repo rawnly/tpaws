@@ -251,8 +251,13 @@ async fn get_tag_tickets(
     version: String,
 ) -> Result<Vec<(String, String)>> {
     let mut data = vec![];
-    let filter =
-        format!("(Project.Name='{project}')and(Release.Name='{release_prefix}@{version}')");
+    let release_name = if release_prefix.is_empty() {
+        version.to_string()
+    } else {
+        format!("{release_prefix}@{version}")
+    };
+
+    let filter = format!("(Project.Name='{project}')and(Release.Name='{release_name}')");
 
     let client = reqwest::Client::new();
     let response = client

@@ -128,7 +128,7 @@ pub enum TicketCommands {
         #[arg(long, short = 'P')]
         project: String,
 
-        #[arg(long, short = 'p')]
+        #[arg(long, short = 'p', default_value_t = String::new())]
         prefix: String,
     },
 }

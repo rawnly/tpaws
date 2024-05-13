@@ -37,6 +37,14 @@ regex = "*"
 
 
 [dependencies]
+# Local Crates
+slack = { path = "./crates/slack" }
+commands = { path = "./crates/commands" }
+config = { path = "./crates/config" }
+target_process = { path = "./crates/target_process" }
+global_utils = { path = "./crates/global_utils" }
+
+# Extenral
 anyhow = "1.0.80"
 clap = { version = "4.5.1", features = ["derive"] }
 color-eyre = "0.6.2"
@@ -62,10 +70,11 @@ cached = { version = "0.49.2", features = [
   "serde_json",
 ] }
 sentry = "0.32.2"
-
-# Local Crates
-slack = { path = "./crates/slack" }
-commands = { path = "./crates/commands" }
-config = { path = "./crates/config" }
-target_process = { path = "./crates/target_process" }
-global_utils = { path = "./crates/global_utils" }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = [
+  "env-filter",
+  "registry",
+  "serde",
+  "serde_json",
+] }
+axiom-rs = "0.9.0"
