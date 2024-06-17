@@ -14,11 +14,14 @@ use config::{util::get_user_id, Config, ProjectConfig};
 use global_utils::print_dbg;
 use human_panic::setup_panic;
 use mdka::from_html;
+use std::str::FromStr;
 use target_process::{models::EntityStates, SearchOperator};
 
 use crate::{
-    cli::Args, context::GlobalContext, manifests::node::PackageJson,
-    subcommands::release::ReleaseKind, telemetry::track_event,
+    cli::Args,
+    context::GlobalContext,
+    manifests::{node::PackageJson, Version},
+    subcommands::release::ReleaseKind,
 };
 
 mod cli;
@@ -48,7 +51,12 @@ fn is_slack_enabled(slack_flag: bool) -> bool {
 #[allow(unreachable_code, unused_variables)]
 async fn main() -> Result<()> {
     telemetry::init()?;
-    let axiom = axiom_rs::Client::new()?;
+    let axiom_token = env!("AXIOM_TOKEN");
+
+    let axiom = axiom_rs::Client::builder()
+        .with_token(axiom_token)
+        .build()
+        .expect("failed to initialize axiom");
 
     //  TODO: replace with axiom
     let _guard = sentry::init((
@@ -104,7 +112,7 @@ async fn main() -> Result<()> {
         println!("Please configure the CLI before continue");
         println!();
 
-        telemetry::track_event(telemetry::Event::Installation, Some(""))?;
+        telemetry::track_event(telemetry::Event::Installation, Some("")).await?;
 
         subcommands::config::reset().await?;
     }
@@ -491,6 +499,24 @@ async fn main() -> Result<()> {
                     subcommands::release::finish(&pkg, &branch.0).await?;
                 }
             }
+        }
+        cli::Commands::Bump {
+            patch,
+            minor,
+            major,
+        } => {
+            let pkg = manifests::node::PackageJson::read().await?;
+            let version = pkg.version;
+            let mut version = Version::from_str(&version).expect("invalid version");
+
+            match (patch, minor, major) {
+                (true, _, _) => version.bump_patch(),
+                (_, true, _) => version.bump_minor(),
+                (_, _, true) => version.bump_major(),
+                _ => version.bump_patch(),
+            }
+
+            println!("{}", version.to_string());
         }
     }
 

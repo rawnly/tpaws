@@ -28,31 +28,27 @@ pub fn init() -> Result<()> {
     Ok(())
 }
 
-pub fn init_axiom_client() -> Result<Client> {
-    let client = Client::new()?;
-
-    Ok(client)
-}
-
 #[derive(Debug, strum::Display)]
 pub enum Event {
     Installation,
 }
 
 #[tracing::instrument(skip(metadata))]
-pub fn track_event<T>(event: Event, metadata: Option<T>) -> Result<()>
+pub async fn track_event<T>(event: Event, metadata: Option<T>) -> Result<()>
 where
     T: serde::Serialize,
 {
-    let client = Client::new()?;
+    let client = Client::builder().with_token(env!("AXIOM_TOKEN")).build()?;
 
-    client.ingest(
-        env!("AXIOM_DATASET"),
-        [json!({
-            "event_name": event.to_string(),
-            "metadata": metadata
-        })],
-    )?;
+    client
+        .ingest(
+            env!("AXIOM_DATASET"),
+            [json!({
+                "event_name": event.to_string(),
+                "metadata": metadata
+            })],
+        )
+        .await?;
 
     Ok(())
 }

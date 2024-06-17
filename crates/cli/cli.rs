@@ -228,4 +228,15 @@ pub enum Commands {
         #[arg(long, default_value = "default")]
         profile: String,
     },
+
+    Bump {
+        #[arg(long)]
+        patch: bool,
+
+        #[arg(long)]
+        minor: bool,
+
+        #[arg(long)]
+        major: bool,
+    },
 }

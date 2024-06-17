@@ -109,7 +109,7 @@ pub async fn merge(
     println!("Found 1 matching PR");
     println!();
     println!("[{}] {}", pr.id.yellow(), pr.title.yellow());
-    println!("{}", pr.description.yellow());
+    println!("{}", pr.description.clone().unwrap_or("--".into()).yellow());
     println!("{}", link.blue());
     println!();
 
@@ -152,10 +152,10 @@ pub async fn merge(
     };
 
     let mut commit = if quiet {
-        commit_message.unwrap_or(pr.description)
+        commit_message.or(pr.description).unwrap_or_default()
     } else {
         inquire::Text::new("Commit Message")
-            .with_default(&commit_message.unwrap_or(pr.description))
+            .with_default(&commit_message.or(pr.description).unwrap_or_default())
             .prompt()?
     };
 

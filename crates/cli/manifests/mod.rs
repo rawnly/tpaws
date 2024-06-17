@@ -39,7 +39,7 @@ impl Version {
 
 impl ToString for Version {
     fn to_string(&self) -> String {
-        format!("{}.{:0>2}.{:0>2}", self.major, self.minor, self.patch)
+        format!("{}.{:0>1}.{:0>1}", self.major, self.minor, self.patch)
     }
 }
 

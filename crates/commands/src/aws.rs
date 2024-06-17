@@ -20,7 +20,7 @@ pub struct PullRequest {
     pub id: String,
 
     pub title: String,
-    pub description: String,
+    pub description: Option<String>,
 
     #[serde(rename = "pullRequestStatus")]
     pub status: String,

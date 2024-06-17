@@ -6,7 +6,6 @@ release:
 	sd '\{\{shasum\}\}' "$$SHASUM" tpaws.rb
 
 install:
-	. .env
-	TPAWS_COMMIT_ID=$$(git rev-parse HEAD); \
+	. .env && TPAWS_COMMIT_ID=$$(git rev-parse HEAD); \
 	cargo install --path .
 
