@@ -430,13 +430,17 @@ async fn main() -> Result<()> {
                                 return Ok(());
                             }
 
-                            println!("Id: {}", project.id);
-                            println!("Name: {}", project.name);
-                            println!(
-                                "Url: {}/entities/{}",
-                                target_process::get_base_url(),
-                                project.id
-                            );
+                            if let Some(project) = project {
+                                println!("Id: {}", project.id);
+                                println!("Name: {}", project.name);
+                                println!(
+                                    "Url: {}/entities/{}",
+                                    target_process::get_base_url(),
+                                    project.id
+                                );
+                            } else {
+                                println!("No project!");
+                            }
                         }
                     },
                 }

@@ -16,7 +16,7 @@ pub struct Assignable {
     pub entity_type: EntityType,
 
     /// Project?
-    pub project: Project,
+    pub project: Option<Project>,
 }
 
 impl Assignable {
@@ -66,11 +66,11 @@ impl From<AssignableV2> for Assignable {
             resource_type,
             entity_state: entity_state.into(),
             entity_type: entity_type.into(),
-            project: Project {
-                id: project.id,
-                resource_type: project.resource_type,
-                name: project.name,
-            },
+            project: project.map(|p| Project {
+                id: p.id,
+                resource_type: p.resource_type,
+                name: p.name,
+            }),
         }
     }
 }

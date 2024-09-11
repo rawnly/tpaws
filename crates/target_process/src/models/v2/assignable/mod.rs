@@ -11,7 +11,7 @@ pub struct Assignable {
     pub description: Option<String>,
     pub entity_type: EntityType,
     pub entity_state: EntityState,
-    pub project: Project,
+    pub project: Option<Project>,
 }
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
