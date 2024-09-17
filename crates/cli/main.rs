@@ -15,6 +15,7 @@ use global_utils::print_dbg;
 use human_panic::setup_panic;
 use mdka::from_html;
 use std::str::FromStr;
+use target_process::models::v2::assignable::Project;
 use target_process::{models::EntityStates, SearchOperator};
 
 use crate::{
@@ -206,6 +207,37 @@ async fn main() -> Result<()> {
             }
         }
         cli::Commands::Ticket { subcommands } => match subcommands {
+            cli::TicketCommands::Init { project } => {
+                let projects = target_process::get_projects(0, 200).await?;
+
+                let list: Vec<String> = projects
+                    .iter()
+                    .map(|p| {
+                        p.abbreviation
+                            .map_or(p.name, |abbr| format!("{} - {}", abbr, p.name))
+                    })
+                    .collect();
+
+                let picked =
+                    inquire::Select::new("Pick a project from the list:", list).prompt()?;
+
+                let mut project: Option<&Project> = None;
+
+                if picked.contains("-") {
+                    let abbr = picked.split(" - ").next().unwrap();
+                    let name = picked.split(" - ").last().unwrap();
+
+                    project = projects
+                        .iter()
+                        .find(|p| p.abbreviation.map_or(true, |a| a == abbr) && p.name == name);
+                } else {
+                    project = projects.iter().find(|p| p.name == picked);
+                }
+
+                let project = project.ok_or(eyre!("unable to find project"))?;
+
+                println!("Project: {}", project.name);
+            }
             cli::TicketCommands::Start {
                 id_or_url,
                 branch,

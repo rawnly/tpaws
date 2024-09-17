@@ -7,7 +7,8 @@ use errors::*;
 use models::{
     user::CurrentUser,
     v1::assignable::{Assignable, UpdateEntityStatePayload, ID},
-    v2, EntityStates,
+    v2::{self, assignable::Project as ProjectV2},
+    EntityStates,
 };
 use reqwest::header::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -94,6 +95,8 @@ pub enum Param {
     Where(String),
     Filter(String),
     AccessToken(String),
+    Take(usize),
+    Skip(usize),
 }
 
 #[allow(clippy::from_over_into)]
@@ -104,6 +107,8 @@ impl Into<(String, String)> for Param {
             Self::Where(value) => ("where".to_string(), value),
             Self::Filter(value) => ("filter".to_string(), value),
             Self::Select(value) => ("select".to_string(), value),
+            Self::Take(value) => ("take".to_string(), value.to_string()),
+            Self::Skip(value) => ("skip".to_string(), value.to_string()),
         }
     }
 }
@@ -305,6 +310,23 @@ pub async fn get_project(id: String) -> Result<Project> {
     let url = format!("/v1/Projects/{id}");
 
     fetch(url, []).await
+}
+
+#[cached]
+pub async fn get_projects(skip: usize, take: usize) -> Result<Vec<ProjectV2>> {
+    let url = "/v2/projects".to_string();
+
+    let data: ResponseListV2<ProjectV2> = fetch(
+        url,
+        [
+            Param::Take(take),
+            Param::Skip(skip),
+            Param::Select("{id,name,resourceType,abbreviation}".to_string()),
+        ],
+    )
+    .await?;
+
+    Ok(data.items)
 }
 
 #[cached]
