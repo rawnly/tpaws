@@ -9,7 +9,7 @@ use models::{
     v1::assignable::{Assignable, UpdateEntityStatePayload, ID},
     v2, EntityStates,
 };
-use reqwest::header::*;
+use reqwest::{header::*, StatusCode};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::models::v1::assignable::Project;
@@ -132,6 +132,10 @@ pub async fn post<T: DeserializeOwned, P: Serialize>(path: String, payload: P) -
         .send()
         .await
         .map_err(|e| ApiError::GenericError(e.to_string()))?;
+
+    if response.status() >= StatusCode::BAD_REQUEST {
+        return Err(ApiError::GenericError("Something went wrong".to_string()));
+    }
 
     response
         .json::<T>()

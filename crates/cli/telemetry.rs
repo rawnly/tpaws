@@ -31,6 +31,7 @@ pub fn init() -> Result<()> {
 #[derive(Debug, strum::Display)]
 pub enum Event {
     Installation,
+    NoAwsInstalled,
 }
 
 #[tracing::instrument(skip(metadata))]

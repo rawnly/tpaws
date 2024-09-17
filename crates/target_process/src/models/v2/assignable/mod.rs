@@ -7,7 +7,7 @@ use serde::Deserialize;
 pub struct Assignable {
     pub id: usize,
     pub name: String,
-    pub resource_type: String,
+    pub resource_type: Option<String>,
     pub description: Option<String>,
     pub entity_type: EntityType,
     pub entity_state: EntityState,

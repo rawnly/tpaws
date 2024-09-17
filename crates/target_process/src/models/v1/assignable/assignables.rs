@@ -8,7 +8,7 @@ use crate::{
 #[serde(rename_all = "PascalCase")]
 pub struct Assignable {
     /// UserStory - Bug
-    pub resource_type: String,
+    pub resource_type: Option<String>,
     pub id: usize,
     pub name: String,
     pub description: Option<String>,

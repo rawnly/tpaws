@@ -97,6 +97,8 @@ async fn main() -> Result<()> {
     }
 
     if !commands::is_installed!("aws") {
+        telemetry::track_event(telemetry::Event::NoAwsInstalled, Some("")).await?;
+
         println!("Useful links:");
         println!(
             "- {}",
