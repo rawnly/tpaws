@@ -214,7 +214,8 @@ async fn main() -> Result<()> {
                     .iter()
                     .map(|p| {
                         p.abbreviation
-                            .map_or(p.name, |abbr| format!("{} - {}", abbr, p.name))
+                            .as_ref()
+                            .map_or(p.name.clone(), |abbr| format!("{} - {}", abbr, p.name))
                     })
                     .collect();
 
@@ -223,13 +224,13 @@ async fn main() -> Result<()> {
 
                 let mut project: Option<&Project> = None;
 
-                if picked.contains("-") {
+                if picked.contains('-') {
                     let abbr = picked.split(" - ").next().unwrap();
                     let name = picked.split(" - ").last().unwrap();
 
-                    project = projects
-                        .iter()
-                        .find(|p| p.abbreviation.map_or(true, |a| a == abbr) && p.name == name);
+                    project = projects.iter().find(|p| {
+                        p.abbreviation.as_ref().map_or(true, |a| a == abbr) && p.name == name
+                    });
                 } else {
                     project = projects.iter().find(|p| p.name == picked);
                 }
@@ -482,9 +483,10 @@ async fn main() -> Result<()> {
                 to,
                 prefix,
                 project,
+                plain,
             } => {
                 let changelog =
-                    target_process::generate_changelog(from, to, project, prefix).await?;
+                    target_process::generate_changelog(from, to, project, prefix, plain).await?;
 
                 if changelog.is_empty() {
                     println!("Empty changelog :(");

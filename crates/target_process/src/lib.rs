@@ -189,12 +189,24 @@ impl ToString for Row {
     }
 }
 
+impl Row {
+    fn to_string_plain(&self) -> String {
+        let base_url = get_base_url();
+
+        match self {
+            Self::Title(version) => format!("{version}"),
+            Self::Log(id, name) => format!("- [{id}] {name}"),
+        }
+    }
+}
+
 #[cached]
 pub async fn generate_changelog(
     from: usize,
     to: Option<usize>,
     project_name: String,
     release_prefix: String,
+    plain: bool,
 ) -> Result<Vec<String>> {
     let to = to.unwrap_or(from);
 
@@ -244,7 +256,13 @@ pub async fn generate_changelog(
     }
 
     let rows = rows.lock().unwrap();
-    let strings: Vec<String> = rows.iter().map(|row| row.to_string()).collect();
+    let strings: Vec<String> = rows
+        .iter()
+        .map(|row| match plain {
+            true => row.to_string_plain(),
+            _ => row.to_string(),
+        })
+        .collect();
 
     Ok(strings)
 }

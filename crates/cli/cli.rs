@@ -134,6 +134,9 @@ pub enum TicketCommands {
 
         #[arg(long, short = 'p', default_value_t = String::new())]
         prefix: String,
+
+        #[arg(long, default_value_t = false)]
+        plain: bool,
     },
 }
 
