@@ -484,9 +484,11 @@ async fn main() -> Result<()> {
                 prefix,
                 project,
                 plain,
+                no_title,
             } => {
                 let changelog =
-                    target_process::generate_changelog(from, to, project, prefix, plain).await?;
+                    target_process::generate_changelog(from, to, project, prefix, plain, no_title)
+                        .await?;
 
                 if changelog.is_empty() {
                     println!("Empty changelog :(");

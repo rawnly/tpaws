@@ -137,6 +137,9 @@ pub enum TicketCommands {
 
         #[arg(long, default_value_t = false)]
         plain: bool,
+
+        #[arg(long, default_value_t = false)]
+        no_title: bool,
     },
 }
 

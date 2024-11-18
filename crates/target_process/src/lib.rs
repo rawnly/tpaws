@@ -191,11 +191,15 @@ impl ToString for Row {
 
 impl Row {
     fn to_string_plain(&self) -> String {
-        let base_url = get_base_url();
-
         match self {
-            Self::Title(version) => format!("{version}"),
-            Self::Log(id, name) => format!("- [{id}] {name}"),
+            Self::Title(version) => version.into(),
+            Self::Log(id, name) => {
+                let pattern = r#"^\"|\"$"#;
+                let re = regex::Regex::new(pattern).unwrap();
+                let name = re.replace_all(name, "");
+
+                format!("- [{id}] {}", name)
+            }
         }
     }
 }
@@ -207,6 +211,7 @@ pub async fn generate_changelog(
     project_name: String,
     release_prefix: String,
     plain: bool,
+    no_title: bool,
 ) -> Result<Vec<String>> {
     let to = to.unwrap_or(from);
 
@@ -258,9 +263,15 @@ pub async fn generate_changelog(
     let rows = rows.lock().unwrap();
     let strings: Vec<String> = rows
         .iter()
-        .map(|row| match plain {
-            true => row.to_string_plain(),
-            _ => row.to_string(),
+        .filter_map(|row| {
+            if no_title && matches!(row, Row::Title(_)) {
+                return None;
+            }
+
+            Some(match plain {
+                true => row.to_string_plain(),
+                _ => row.to_string(),
+            })
         })
         .collect();
 
