@@ -23,7 +23,6 @@ impl CommandError {
     }
 
     pub fn from_serde(e: serde_json::Error) -> Self {
-        dbg!(e);
         CommandError::SerializationError(e.to_string())
     }
 }

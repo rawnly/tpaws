@@ -120,7 +120,7 @@ async fn main() -> Result<()> {
         subcommands::config::reset().await?;
     }
 
-    let config = Config::read().await?;
+    let mut config = Config::read().await?;
     let local_config = ProjectConfig::read().await;
 
     if !target_process::has_token() {
@@ -248,7 +248,7 @@ async fn main() -> Result<()> {
                 no_assign,
                 project,
             } => {
-                let project = match local_config.and_then(|c| c.tp_name).or(project) {
+                let project = match local_config.and_then(|c| c.name).or(project) {
                     Some(p) => p,
                     None => return Err(eyre!("Unable to extract project")),
                 };
@@ -541,6 +541,24 @@ async fn main() -> Result<()> {
                     subcommands::release::finish(&pkg, &branch.0).await?;
                 }
             }
+        }
+        cli::Commands::Init { project, force } => {
+            if ProjectConfig::exists() && !force {
+                println!("Project already initialized");
+                return Ok(());
+            }
+
+            let config = ProjectConfig {
+                name: project.or_else(|| inquire::Text::new("Project name:").prompt().ok()),
+            };
+
+            if !args.dry_run {
+                config.write()?;
+            } else {
+                println!("{:?}", config);
+            }
+
+            println!("Project initialized");
         }
         cli::Commands::Bump {
             patch,

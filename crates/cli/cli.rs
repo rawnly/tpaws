@@ -249,4 +249,12 @@ pub enum Commands {
         #[arg(long)]
         major: bool,
     },
+
+    Init {
+        #[arg(long, default_value = "false")]
+        force: bool,
+
+        #[arg(long)]
+        project: Option<String>,
+    },
 }

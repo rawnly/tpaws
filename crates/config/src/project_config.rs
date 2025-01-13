@@ -6,8 +6,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectConfig {
-    pub project_id: Option<String>,
-    pub tp_name: Option<String>,
+    pub name: Option<String>,
 }
 
 const FILE_PATH: &str = "./tpaws.json";
@@ -43,5 +42,10 @@ impl ProjectConfig {
         file.read_to_string(&mut contents).await.ok()?;
 
         serde_json::from_str(&contents).ok()
+    }
+
+    pub fn exists() -> bool {
+        let path = Path::new(FILE_PATH);
+        path.exists()
     }
 }
