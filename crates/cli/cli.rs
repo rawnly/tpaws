@@ -61,6 +61,10 @@ pub enum ReleaseCommands {
 
 #[derive(Subcommand, strum::Display, Debug, Clone)]
 pub enum TicketCommands {
+    Init {
+        #[arg(long, short)]
+        project: Option<String>,
+    },
     /// Info about the current branch or given userStory id
     View {
         /// userStory ID or URL
@@ -130,6 +134,12 @@ pub enum TicketCommands {
 
         #[arg(long, short = 'p', default_value_t = String::new())]
         prefix: String,
+
+        #[arg(long, default_value_t = false)]
+        plain: bool,
+
+        #[arg(long, default_value_t = false)]
+        no_title: bool,
     },
 }
 

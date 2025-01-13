@@ -27,6 +27,7 @@ pub struct Project {
     pub id: usize,
     pub name: String,
     pub resource_type: String,
+    pub abbreviation: Option<String>,
 }
 
 pub type EntityState = IdAndName;

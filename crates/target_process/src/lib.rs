@@ -7,7 +7,8 @@ use errors::*;
 use models::{
     user::CurrentUser,
     v1::assignable::{Assignable, UpdateEntityStatePayload, ID},
-    v2, EntityStates,
+    v2::{self, assignable::Project as ProjectV2},
+    EntityStates,
 };
 use reqwest::{header::*, StatusCode};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -94,6 +95,8 @@ pub enum Param {
     Where(String),
     Filter(String),
     AccessToken(String),
+    Take(usize),
+    Skip(usize),
 }
 
 #[allow(clippy::from_over_into)]
@@ -104,6 +107,8 @@ impl Into<(String, String)> for Param {
             Self::Where(value) => ("where".to_string(), value),
             Self::Filter(value) => ("filter".to_string(), value),
             Self::Select(value) => ("select".to_string(), value),
+            Self::Take(value) => ("take".to_string(), value.to_string()),
+            Self::Skip(value) => ("skip".to_string(), value.to_string()),
         }
     }
 }
@@ -188,12 +193,29 @@ impl ToString for Row {
     }
 }
 
+impl Row {
+    fn to_string_plain(&self) -> String {
+        match self {
+            Self::Title(version) => version.into(),
+            Self::Log(id, name) => {
+                let pattern = r#"^\"|\"$"#;
+                let re = regex::Regex::new(pattern).unwrap();
+                let name = re.replace_all(name, "");
+
+                format!("- [{id}] {}", name)
+            }
+        }
+    }
+}
+
 #[cached]
 pub async fn generate_changelog(
     from: usize,
     to: Option<usize>,
     project_name: String,
     release_prefix: String,
+    plain: bool,
+    no_title: bool,
 ) -> Result<Vec<String>> {
     let to = to.unwrap_or(from);
 
@@ -243,7 +265,19 @@ pub async fn generate_changelog(
     }
 
     let rows = rows.lock().unwrap();
-    let strings: Vec<String> = rows.iter().map(|row| row.to_string()).collect();
+    let strings: Vec<String> = rows
+        .iter()
+        .filter_map(|row| {
+            if no_title && matches!(row, Row::Title(_)) {
+                return None;
+            }
+
+            Some(match plain {
+                true => row.to_string_plain(),
+                _ => row.to_string(),
+            })
+        })
+        .collect();
 
     Ok(strings)
 }
@@ -309,6 +343,23 @@ pub async fn get_project(id: String) -> Result<Project> {
     let url = format!("/v1/Projects/{id}");
 
     fetch(url, []).await
+}
+
+#[cached]
+pub async fn get_projects(skip: usize, take: usize) -> Result<Vec<ProjectV2>> {
+    let url = "/v2/projects".to_string();
+
+    let data: ResponseListV2<ProjectV2> = fetch(
+        url,
+        [
+            Param::Take(take),
+            Param::Skip(skip),
+            Param::Select("{id,name,resourceType,abbreviation}".to_string()),
+        ],
+    )
+    .await?;
+
+    Ok(data.items)
 }
 
 #[cached]
