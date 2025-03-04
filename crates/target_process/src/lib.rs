@@ -139,7 +139,7 @@ pub async fn post<T: DeserializeOwned, P: Serialize>(path: String, payload: P) -
         .map_err(|e| ApiError::GenericError(e.to_string()))?;
 
     if response.status() >= StatusCode::BAD_REQUEST {
-        return Err(ApiError::GenericError("Something went wrong".to_string()));
+        return Err(ApiError::HTTP(response.status()));
     }
 
     response
@@ -168,12 +168,21 @@ where
         .await
         .map_err(|e| ApiError::GenericError(e.to_string()))?;
 
-    let text = response
-        .text()
-        .await
-        .map_err(|e| ApiError::GenericError(e.to_string()))?;
+    if response.status() >= StatusCode::BAD_REQUEST {
+        return Err(ApiError::HTTP(response.status()));
+    }
 
-    serde_json::from_str(&text).map_err(|e| ApiError::Json(e.to_string()))
+    response
+        .json::<T>()
+        .await
+        .map_err(|e| ApiError::Json(e.to_string()))
+
+    // let text = response
+    //     .text()
+    //     .await
+    //     .map_err(|e| ApiError::GenericError(e.to_string()))?;
+    //
+    // serde_json::from_str(&text).map_err(|e| ApiError::Json(e.to_string()))
 }
 
 #[derive(Debug)]

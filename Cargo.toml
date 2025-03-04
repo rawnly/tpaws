@@ -78,3 +78,4 @@ tracing-subscriber = { version = "0.3.18", features = [
   "serde_json",
 ] }
 axiom-rs = "0.9.0"
+arboard = "3.4.1"

@@ -151,6 +151,9 @@ pub enum PullRequestCommands {
         #[arg(long)]
         slack: bool,
 
+        #[arg(long, default_value = "true")]
+        copy: bool,
+
         /// PR title
         #[arg(long, short)]
         title: Option<String>,
@@ -167,6 +170,13 @@ pub enum PullRequestCommands {
     View {
         /// PR id
         id: Option<String>,
+
+        /// open the PR in the browser
+        #[arg(long)]
+        copy_url: bool,
+
+        #[arg(long)]
+        markdown: bool,
 
         /// open the PR in the browser
         #[arg(long, short)]

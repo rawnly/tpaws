@@ -1,3 +1,4 @@
+use arboard::Clipboard;
 use color_eyre::Result;
 use colored::*;
 use commands::{aws, git};
@@ -13,6 +14,7 @@ pub async fn create(
     description: Option<String>,
     base: String,
     slack: bool,
+    copy: bool,
 ) -> Result<()> {
     let target_process_url = target_process::get_base_url();
     let raw_region = aws::get_region(ctx.profile.clone()).await?;
@@ -91,31 +93,34 @@ pub async fn create(
 
     pr_spinner.stop_and_persist("🔗", format!("PR Available at: {pr_link}"));
 
-    if !slack {
-        return Ok(());
-    }
+    if slack {
+        if let Ok(slack_user_id) = std::env::var("SLACK_USER_ID") {
+            println!();
 
-    if let Ok(slack_user_id) = std::env::var("SLACK_USER_ID") {
-        println!();
+            let user = select_user()?;
+            println!("Reviewer: {}", user.name.yellow());
 
-        let user = select_user()?;
-        println!("Reviewer: {}", user.name.yellow());
+            let mut slack_spinner = Spinner::new(Spinners::Dots, "Sending slack message".into());
 
-        let mut slack_spinner = Spinner::new(Spinners::Dots, "Sending slack message".into());
-
-        let pr_link = format!("https://{region}.console.aws.amazon.com/codesuite/codecommit/repositories/{repository}/pull-requests/{pr_id}/details", pr_id = pr.pull_request.id);
-
-        slack::send_message(
+            slack::send_message(
             format!(
                 "<@{slack_user_id}> opened a PR to: <@{reviewer}> - `{repository}` <{pr_link}|{pr_id}: {title}>",
                 reviewer = user.id,
                 pr_id = pr.pull_request.id,
             ),
-            pr_link,
+            pr_link.clone(),
             tp_link
         ).await?;
 
-        slack_spinner.stop_with_symbol("✅");
+            slack_spinner.stop_with_symbol("✅");
+        }
+    }
+
+    if copy {
+        let mut clipboard = Clipboard::new()?;
+        clipboard.set_text(pr_link.clone())?;
+
+        println!("PR link copied to clipboard!");
     }
 
     Ok(())

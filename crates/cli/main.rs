@@ -165,6 +165,7 @@ async fn main() -> Result<()> {
                     description,
                     base,
                     slack,
+                    copy,
                 } => {
                     subcommands::pull_request::create(
                         ctx,
@@ -173,12 +174,16 @@ async fn main() -> Result<()> {
                         description,
                         base,
                         is_slack_enabled(slack),
+                        copy,
                     )
                     .await?
                 }
-                cli::PullRequestCommands::View { id, web } => {
-                    subcommands::pull_request::view(ctx, id, web).await?
-                }
+                cli::PullRequestCommands::View {
+                    id,
+                    web,
+                    copy_url,
+                    markdown,
+                } => subcommands::pull_request::view(ctx, id, web, copy_url, markdown).await?,
                 cli::PullRequestCommands::Merge {
                     id,
                     author,
