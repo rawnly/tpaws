@@ -172,7 +172,7 @@ pub enum PullRequestCommands {
         id: Option<String>,
 
         /// open the PR in the browser
-        #[arg(long)]
+        #[arg(long, short)]
         copy_url: bool,
 
         #[arg(long)]

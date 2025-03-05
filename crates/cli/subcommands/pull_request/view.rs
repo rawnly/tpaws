@@ -8,6 +8,8 @@ use commands::{
 
 use crate::{context::GlobalContext, utils};
 
+use super::get_current_pr;
+
 pub async fn view(
     ctx: GlobalContext,
     id: Option<String>,
@@ -23,7 +25,7 @@ pub async fn view(
         ..
     } = ctx;
 
-    let mut pull_request: Option<PullRequest> = None;
+    let pull_request: Option<PullRequest>;
 
     if let Some(id) = id {
         pull_request = Some(
@@ -32,23 +34,7 @@ pub async fn view(
                 .pull_request,
         );
     } else {
-        let all_prs =
-            aws::list_pull_requests(repository.clone(), PullRequestStatus::Open, profile.clone())
-                .await?;
-
-        for pr_id in all_prs.pull_request_ids {
-            let current_pr = aws::get_pull_request(pr_id, profile.clone()).await?;
-
-            for target in current_pr.clone().pull_request.targets {
-                if target.source.replace("refs/heads/", "") != branch {
-                    continue;
-                }
-
-                pull_request = Some(current_pr.pull_request);
-
-                break;
-            }
-        }
+        pull_request = get_current_pr(branch, repository.clone(), profile).await?;
     }
 
     if let Some(pull_request) = pull_request {
@@ -61,9 +47,9 @@ pub async fn view(
                 clipboard.set_text(format!(
                     "[{}: {}]({link})",
                     pull_request.id, pull_request.title
-                ));
+                ))?;
             } else {
-                clipboard.set_text(link.clone());
+                clipboard.set_text(link.clone())?;
             }
 
             println!("Link to clipboard: {}", link.blue());
