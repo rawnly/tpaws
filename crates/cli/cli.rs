@@ -98,8 +98,6 @@ pub enum TicketCommands {
         #[arg(long, short = 'P')]
         project: Option<String>,
     },
-    /// Run `git flow finish`
-    Finish { id_or_url: Option<String> },
 
     /// Print userStory link
     Link { id_or_url: Option<String> },
@@ -118,18 +116,6 @@ pub enum TicketCommands {
 
         #[arg(long, default_value_t = false)]
         title_only: bool,
-    },
-
-    /// Print project details
-    GetProject {
-        #[arg(long)]
-        id: Option<String>,
-
-        #[arg(long)]
-        name: Option<String>,
-
-        #[arg(long)]
-        json: bool,
     },
 
     /// Generate a changelog from a targetprocess release
@@ -178,6 +164,10 @@ pub enum PullRequestCommands {
 
         #[arg(long, default_value_t = false)]
         ai: bool,
+
+        /// For more info see: https://console.groq.com/docs/models#production-models
+        #[arg(long)]
+        ai_model: Option<String>,
     },
     /// Retrive a PR
     View {
@@ -195,24 +185,6 @@ pub enum PullRequestCommands {
         #[arg(long, short)]
         web: bool,
     },
-    /// Squash merge a PR
-    Merge {
-        /// do not prompt for confirmation
-        #[arg(long, short)]
-        use_defaults: bool,
-
-        #[arg(long, short)]
-        commit_message: Option<String>,
-
-        #[arg(long)]
-        author: Option<String>,
-
-        #[arg(long)]
-        email: Option<String>,
-
-        id: Option<String>,
-    },
-
     List {
         #[arg(long)]
         interactive: bool,
@@ -236,15 +208,6 @@ pub enum Commands {
         subcommands: ConfigCommands,
     },
 
-    #[cfg(debug_assertions)]
-    CacheTest,
-
-    /// Release
-    Release {
-        #[command(subcommand)]
-        subcommands: ReleaseCommands,
-    },
-
     /// Manage target process
     #[clap(visible_alias = "us")]
     Ticket {
@@ -260,17 +223,6 @@ pub enum Commands {
         /// aws profile
         #[arg(long, default_value = "default")]
         profile: String,
-    },
-
-    Bump {
-        #[arg(long)]
-        patch: bool,
-
-        #[arg(long)]
-        minor: bool,
-
-        #[arg(long)]
-        major: bool,
     },
 
     Init {

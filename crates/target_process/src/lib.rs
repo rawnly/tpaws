@@ -43,7 +43,7 @@ fn get_headers() -> HeaderMap {
     headers
 }
 
-fn get_token() -> Result<String> {
+pub fn get_token() -> Result<String> {
     let token = std::env::var("TARGET_PROCESS_ACCESS_TOKEN")
         .map_err(|source| ApiError::TokenNotFound { source })?;
 

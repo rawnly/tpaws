@@ -28,9 +28,16 @@ pub struct Config {
     pub last_auth: Option<DateTime<Utc>>,
     pub arn: Option<String>,
     pub groq_api_key: Option<String>,
+    pub ai_model: Option<String>,
+    pub tp_apikey: Option<String>,
+    pub tp_url: Option<String>,
 }
 
 impl Config {
+    pub fn update_ai_model(&mut self, model: &str) {
+        self.ai_model = Some(model.to_string());
+    }
+
     pub fn update_groq_api_key(&mut self, key: &str) {
         self.groq_api_key = Some(key.to_string());
     }

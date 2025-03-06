@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 
 use color_eyre::eyre::OptionExt;
-use ai::groq;
+use ai::groq::{ self, models };
 use arboard::Clipboard;
 use color_eyre::Result;
 use colored::*;
 use commands::{aws, git};
+use config::DEFAULT_AI_MODEL;
 use inquire::{Confirm, Select, Text};
 use spinners::{Spinner, Spinners};
 
@@ -20,7 +21,9 @@ pub async fn create(
     slack: bool,
     copy: bool,
     ai_enhance: bool,
+    ai_model: Option<String>,
 ) -> Result<()> {
+    let model = ai_model.unwrap_or(DEFAULT_AI_MODEL.into());
     let target_process_url = target_process::get_base_url();
     let raw_region = aws::get_region(ctx.profile.clone()).await?;
     let region = raw_region.trim().to_string();
@@ -53,7 +56,7 @@ pub async fn create(
         let id = utils::get_ticket_id_from_branch(branch.clone()).ok_or_eyre("Invalid branch name. Cannot extract id")?;
         let assignable = target_process::get_assignable(id).await?;
 
-        let messages = vec![groq::models::Message::system(
+        let messages = vec![models::Message::system(
             r#"
 You're an AI created to help us generate a PR description given a UserStory or Bug. 
 You will be provided with Title, Description, ID, URL and other details about the UserStory or Bug.
@@ -74,9 +77,9 @@ Return the json data as response. Just that, no other information is needed.
                 "#
                 .to_string(),
         ), 
-            groq::models::Message::user(serde_json::to_string_pretty(&assignable)?)];
+            models::Message::user(serde_json::to_string_pretty(&assignable)?)];
 
-        let response = ai_client.chat(groq::ChatPayload::new("llama3-8b-8192", messages)).await?;
+        let response = ai_client.chat(groq::ChatPayload::new(&model, messages)).await?;
         let content = &response.choices.first().ok_or_eyre("Invalid AI response. No choices returned.")?.message.content;
         let payload = serde_json::from_str::<HashMap<String, String>>(content)?;
 

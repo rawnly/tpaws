@@ -1,5 +1,3 @@
-use ai::groq;
-
 use ai::groq::models;
 use clap::CommandFactory;
 use clap::Parser;
@@ -11,29 +9,16 @@ use colored::*;
 use commands::{
     aws,
     git::{self},
-    spawn_command,
 };
 use config::{util::get_user_id, Config, ProjectConfig};
-use global_utils::print_dbg;
 use human_panic::setup_panic;
-use mdka::from_html;
-use std::str::FromStr;
-use target_process::models::assignable::Assignable;
-use target_process::models::v2::assignable::Project;
-use target_process::{models::EntityStates, SearchOperator};
+use target_process::models::EntityStates;
 
-use crate::{
-    cli::Args,
-    context::GlobalContext,
-    manifests::{node::PackageJson, Version},
-    subcommands::release::ReleaseKind,
-    subcommands::user_story,
-};
+use crate::{cli::Args, context::GlobalContext, subcommands::user_story};
 
 mod cli;
 mod context;
 mod costants;
-mod manifests;
 mod subcommands;
 mod telemetry;
 mod utils;
@@ -176,6 +161,7 @@ async fn main() -> Result<()> {
                     slack,
                     copy,
                     ai,
+                    ai_model,
                 } => {
                     subcommands::pull_request::create(
                         &mut ctx,
@@ -186,6 +172,7 @@ async fn main() -> Result<()> {
                         is_slack_enabled(slack),
                         copy,
                         ai,
+                        ai_model,
                     )
                     .await?
                 }
@@ -195,33 +182,6 @@ async fn main() -> Result<()> {
                     copy_url,
                     markdown,
                 } => subcommands::pull_request::view(ctx, id, web, copy_url, markdown).await?,
-                cli::PullRequestCommands::Merge {
-                    id,
-                    author,
-                    email: author_email,
-                    commit_message,
-                    ..
-                } => {
-                    subcommands::pull_request::merge(
-                        ctx,
-                        id,
-                        author_email,
-                        commit_message,
-                        region,
-                        utils::RepoMetadata::new(repository, branch),
-                        args.quiet,
-                    )
-                    .await?
-                }
-            }
-        }
-        #[cfg(debug_assertions)]
-        cli::Commands::CacheTest => {
-            for i in 0..10 {
-                let start = std::time::Instant::now();
-                let _ = target_process::get_me().await?;
-
-                println!("{:?}", start.elapsed());
             }
         }
         cli::Commands::Ticket { subcommands } => match subcommands {
@@ -240,20 +200,18 @@ async fn main() -> Result<()> {
                 let picked =
                     inquire::Select::new("Pick a project from the list:", list).prompt()?;
 
-                let mut project: Option<&Project> = None;
+                let project = match picked.contains('-') {
+                    true => {
+                        let abbr = picked.split(" - ").next().unwrap();
+                        let name = picked.split(" - ").last().unwrap();
 
-                if picked.contains('-') {
-                    let abbr = picked.split(" - ").next().unwrap();
-                    let name = picked.split(" - ").last().unwrap();
-
-                    project = projects.iter().find(|p| {
-                        p.abbreviation.as_ref().map_or(true, |a| a == abbr) && p.name == name
-                    });
-                } else {
-                    project = projects.iter().find(|p| p.name == picked);
+                        projects.iter().find(|p| {
+                            p.abbreviation.as_ref().is_none_or(|a| a == abbr) && p.name == name
+                        })
+                    }
+                    false => projects.iter().find(|p| p.name == picked),
                 }
-
-                let project = project.ok_or(eyre!("unable to find project"))?;
+                .ok_or(eyre!("unable to find project"))?;
 
                 println!("Project: {}", project.name);
             }
@@ -336,173 +294,21 @@ async fn main() -> Result<()> {
                     commands::git::flow::feature::start(&branch).await?;
                 }
             }
-            cli::TicketCommands::Finish { id_or_url } => {
-                let id = if let Some(id_or_url) = id_or_url {
-                    utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url)
-                } else {
-                    let branch = git::current_branch_v2().await?.0;
-
-                    utils::get_ticket_id_from_branch(branch)
-                        .ok_or_eyre("Unable to extract userStory ID")?
-                };
-
-                let assignable = target_process::get_assignable(id).await?;
-
-                let branch = assignable.get_branch();
-                commands::git::flow::feature::finish(&branch).await?;
-            }
             cli::TicketCommands::View {
                 id_or_url,
                 json,
                 web,
-            } => {
-                let id = if let Some(id_or_url) = id_or_url {
-                    utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url)
-                } else {
-                    let branch = git::current_branch_v2().await?.0;
-
-                    utils::get_ticket_id_from_branch(branch)
-                        .ok_or_eyre("Unable to extract userStory ID")?
-                };
-
-                let assignable = target_process::get_assignable(id).await?;
-
-                if web {
-                    spawn_command!("open", assignable.get_link())?;
-                    return Ok(());
-                }
-
-                if json {
-                    let json_string = serde_json::to_string_pretty(&assignable)?;
-                    println!("{}", json_string);
-
-                    return Ok(());
-                }
-
-                println!("{}", assignable.name);
-                println!("===================");
-                println!();
-
-                match assignable.description {
-                    Some(description) => print_ticket_body(description),
-                    None => println!("no description provided."),
-                };
-
-                println!();
-            }
-            cli::TicketCommands::Link { id_or_url } => {
-                let id = if let Some(id_or_url) = id_or_url {
-                    utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url)
-                } else {
-                    let branch = git::current_branch_v2().await?.0;
-
-                    utils::get_ticket_id_from_branch(branch)
-                        .ok_or_eyre("Unable to extract userStory ID")?
-                };
-
-                let assignable = target_process::get_assignable(id).await?;
-
-                println!("{}", assignable.get_link());
-            }
+            } => user_story::view(id_or_url, json, web).await?,
+            cli::TicketCommands::Link { id_or_url } => user_story::link(id_or_url).await?,
             cli::TicketCommands::GetBranch { id_or_url } => {
-                let id = utils::extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url);
-                let assignable = target_process::get_assignable(id).await?;
-
-                println!("{}", assignable.get_branch());
+                user_story::get_branch(id_or_url).await?
             }
-            cli::TicketCommands::GetId { url } => {
-                let id = if let Some(url) = url {
-                    utils::extract_id_from_url(url.clone()).unwrap_or(url)
-                } else {
-                    let branch = git::current_branch_v2().await?.0;
-
-                    utils::get_ticket_id_from_branch(branch)
-                        .ok_or_eyre("Unable to extract userStory ID")?
-                };
-
-                println!("{id}");
-            }
-            cli::TicketCommands::GetProject { id, json, name } => {
-                let branch = git::current_branch_v2().await?;
-
-                match id {
-                    Some(id) => {
-                        let project = target_process::get_project(id).await?;
-
-                        if json {
-                            println!("{}", serde_json::to_string_pretty(&project)?);
-                            return Ok(());
-                        }
-
-                        println!("Id: {}", project.id);
-                        println!("Name: {}", project.name);
-                        println!(
-                            "Url: {}/entities/{}",
-                            target_process::get_base_url(),
-                            project.id
-                        );
-                    }
-                    None => match name {
-                        Some(name) => {
-                            let projects =
-                                target_process::search_project(name, SearchOperator::Eq).await?;
-                            let project = projects.first().ok_or_eyre("failed to find project")?;
-
-                            if json {
-                                let json_pretty = serde_json::to_string_pretty(&project)?;
-                                println!("{json_pretty}");
-                                return Ok(());
-                            }
-
-                            println!("Id: {}", project.id);
-                            println!("Name: {}", project.name);
-                            println!(
-                                "Url: {}/entities/{}",
-                                target_process::get_base_url(),
-                                project.id
-                            );
-
-                            return Ok(());
-                        }
-                        None => {
-                            if !branch.is_feature() {
-                                println!("Please make sure to be in a feature branch or pass a valid project id or name");
-                                return Ok(());
-                            }
-
-                            let assignable_id = utils::get_ticket_id_from_branch(branch.0)
-                                .ok_or_eyre("unable to extract user story ID")?;
-                            let assignable = target_process::get_assignable(assignable_id).await?;
-                            let project = assignable.project;
-
-                            if json {
-                                let json_pretty = serde_json::to_string_pretty(&project)?;
-                                println!("{json_pretty}");
-                                return Ok(());
-                            }
-
-                            if let Some(project) = project {
-                                println!("Id: {}", project.id);
-                                println!("Name: {}", project.name);
-                                println!(
-                                    "Url: {}/entities/{}",
-                                    target_process::get_base_url(),
-                                    project.id
-                                );
-                            } else {
-                                println!("No project!");
-                            }
-                        }
-                    },
-                }
-            }
+            cli::TicketCommands::GetId { url } => user_story::get_id(url).await?,
             cli::TicketCommands::GenerateCommit {
                 id_or_url,
                 json,
                 title_only,
-            } => {
-                user_story::generate_commit(id_or_url, json, title_only, &mut config).await?;
-            }
+            } => user_story::generate_commit(id_or_url, json, title_only, &mut config).await?,
             cli::TicketCommands::GenerateChangelog {
                 from,
                 to,
@@ -528,43 +334,6 @@ async fn main() -> Result<()> {
         cli::Commands::Config { subcommands } => match subcommands {
             cli::ConfigCommands::Reset => subcommands::config::reset().await?,
         },
-        cli::Commands::Release { subcommands } => {
-            if !PackageJson::exists().await {
-                return Err(eyre!("currently we support only nodejs"));
-            }
-
-            let pkg = PackageJson::read().await?;
-            let branch = git::current_branch_v2().await?;
-
-            match subcommands {
-                cli::ReleaseCommands::Start {
-                    major,
-                    patch,
-                    minor,
-                } => {
-                    let kind: ReleaseKind = match (major, minor, patch) {
-                        (_, _, true) => ReleaseKind::Patch,
-                        (true, _, _) => ReleaseKind::Major,
-                        (_, true, _) => ReleaseKind::Minor,
-                        _ => ReleaseKind::Minor,
-                    };
-
-                    print_dbg!(&kind, major, minor, patch);
-
-                    subcommands::release::start(&pkg, kind).await?;
-                }
-                cli::ReleaseCommands::Push {
-                    target,
-                    pipeline_name: name,
-                    profile,
-                } => {
-                    subcommands::release::push(target, name, profile).await?;
-                }
-                cli::ReleaseCommands::Finish => {
-                    subcommands::release::finish(&pkg, &branch.0).await?;
-                }
-            }
-        }
         cli::Commands::Init { project, force } => {
             if ProjectConfig::exists() && !force {
                 println!("Project already initialized");
@@ -583,36 +352,7 @@ async fn main() -> Result<()> {
 
             println!("Project initialized");
         }
-        cli::Commands::Bump {
-            patch,
-            minor,
-            major,
-        } => {
-            let pkg = manifests::node::PackageJson::read().await?;
-            let version = pkg.version;
-            let mut version = Version::from_str(&version).expect("invalid version");
-
-            match (patch, minor, major) {
-                (true, _, _) => version.bump_patch(),
-                (_, true, _) => version.bump_minor(),
-                (_, _, true) => version.bump_major(),
-                _ => version.bump_patch(),
-            }
-
-            println!("{}", version.to_string());
-        }
     }
 
     Ok(())
-}
-
-fn print_ticket_body(description: String) {
-    if !description.starts_with("<!--markdown-->") {
-        let description = from_html(&description);
-
-        termimad::print_text(&description);
-        return;
-    }
-
-    termimad::print_text(&description.replace("<!--markdown-->", ""));
 }

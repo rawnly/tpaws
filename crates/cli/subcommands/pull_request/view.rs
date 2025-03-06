@@ -2,7 +2,7 @@ use arboard::Clipboard;
 use color_eyre::Result;
 use colored::*;
 use commands::{
-    aws::{self, PullRequest, PullRequestStatus},
+    aws::{self, PullRequest},
     spawn_command,
 };
 

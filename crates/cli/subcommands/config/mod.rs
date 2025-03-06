@@ -2,12 +2,12 @@ use ai::groq;
 use color_eyre::{eyre::eyre, Result};
 use colored::*;
 use commands::git;
-use config::{util::inject_env, Config};
+use config::{util::inject_env, Config, DEFAULT_AI_MODEL};
 use inquire::Text;
 
 pub async fn reset() -> Result<()> {
     if !target_process::is_configured() {
-        let prompt = "Invalid configuration detected.  Do you want to fix this now?".to_string();
+        let prompt = "Invalid configuration detected. Do you want to fix this now?".to_string();
 
         let fix = inquire::Confirm::new(&prompt).with_default(true).prompt()?;
 
@@ -63,6 +63,20 @@ pub async fn reset() -> Result<()> {
         .with_default(&groq::models::get_apikey_from_env().unwrap_or_default())
         .prompt_skippable()?;
 
+    let ai_model = Text::new("AI Model:")
+        .with_help_message("https://console.groq.com/docs/models#production-models")
+        .with_default(DEFAULT_AI_MODEL)
+        .prompt_skippable()?;
+
+    let tp_url = Text::new("Target Process URL")
+        .with_placeholder("https://my-company.tpondemand.com")
+        .with_default(&target_process::get_base_url())
+        .prompt_skippable()?;
+
+    let tp_apikey = Text::new("Target Process URL")
+        .with_default(&target_process::get_token().ok().unwrap_or_default())
+        .prompt_skippable()?;
+
     let config = Config {
         username,
         pr_name: pr_name.unwrap_or(name),
@@ -70,7 +84,10 @@ pub async fn reset() -> Result<()> {
         user_id: me.id,
         last_auth: None,
         arn: None,
-        groq_api_key: groq_api_key,
+        groq_api_key,
+        ai_model,
+        tp_url,
+        tp_apikey,
     };
 
     config.write()

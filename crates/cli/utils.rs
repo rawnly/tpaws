@@ -1,61 +1,13 @@
 use cached::proc_macro::cached;
-use color_eyre::{
-    eyre::{eyre, OptionExt},
-    Result,
-};
-use commands::{
-    aws::{self, PullRequest, PullRequestStatus},
-    git,
-};
+use color_eyre::{eyre::OptionExt, Result};
+use commands::git;
 use config::Config;
 use inquire::Text;
 use regex::Regex;
 
-pub struct RepoMetadata {
-    pub branch: String,
-    pub repository: String,
-}
-
-impl RepoMetadata {
-    pub fn new(repository: String, branch: String) -> Self {
-        Self { repository, branch }
-    }
-}
-
 #[cached]
 pub(crate) fn build_pr_link(region: String, repository: String, id: String) -> String {
     format!("https://{region}.console.aws.amazon.com/codesuite/codecommit/repositories/{repository}/pull-requests/{id}/details")
-}
-
-pub(crate) async fn get_pr_id(
-    profile: String,
-    branch: String,
-    id: Option<String>,
-) -> Result<PullRequest> {
-    let repository = get_repository().await?;
-
-    let all_prs =
-        aws::list_pull_requests(repository, PullRequestStatus::Open, profile.clone()).await?;
-
-    for pr_id in all_prs.pull_request_ids {
-        let current_pr = aws::get_pull_request(pr_id, profile.clone()).await?;
-
-        if let Some(id) = id.clone() {
-            if current_pr.pull_request.id == id {
-                return Ok(current_pr.pull_request);
-            }
-        }
-
-        for target in current_pr.clone().pull_request.targets {
-            if target.source.replace("refs/heads/", "") != branch {
-                continue;
-            }
-
-            return Ok(current_pr.pull_request);
-        }
-    }
-
-    Err(eyre!("Unable to extract pull request ID"))
 }
 
 pub(crate) async fn get_repository() -> Result<String> {
