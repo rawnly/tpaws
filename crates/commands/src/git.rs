@@ -1,12 +1,14 @@
+use std::fmt::Display;
+
 use crate::command;
 use color_eyre::Result;
 
 #[derive(Clone)]
 pub struct Branch(pub String);
 
-impl ToString for Branch {
-    fn to_string(&self) -> String {
-        self.0.clone()
+impl Display for Branch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
     }
 }
 

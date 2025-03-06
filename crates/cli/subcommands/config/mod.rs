@@ -1,3 +1,4 @@
+use ai::groq;
 use color_eyre::{eyre::eyre, Result};
 use colored::*;
 use commands::git;
@@ -57,6 +58,11 @@ pub async fn reset() -> Result<()> {
         .with_default(&potential_username.unwrap_or(me.login))
         .prompt()?;
 
+    let groq_api_key = Text::new("Groq API Key:")
+        .with_help_message("Get your API key from https://groq.dev")
+        .with_default(&groq::models::get_apikey_from_env().unwrap_or_default())
+        .prompt_skippable()?;
+
     let config = Config {
         username,
         pr_name: pr_name.unwrap_or(name),
@@ -64,6 +70,7 @@ pub async fn reset() -> Result<()> {
         user_id: me.id,
         last_auth: None,
         arn: None,
+        groq_api_key: groq_api_key,
     };
 
     config.write()

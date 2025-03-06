@@ -27,9 +27,14 @@ pub struct Config {
     pub user_id: usize,
     pub last_auth: Option<DateTime<Utc>>,
     pub arn: Option<String>,
+    pub groq_api_key: Option<String>,
 }
 
 impl Config {
+    pub fn update_groq_api_key(&mut self, key: &str) {
+        self.groq_api_key = Some(key.to_string());
+    }
+
     pub fn update_auth(&mut self, arn: String) {
         self.last_auth = Some(Utc::now());
         self.arn = Some(arn);

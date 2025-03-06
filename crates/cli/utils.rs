@@ -7,6 +7,8 @@ use commands::{
     aws::{self, PullRequest, PullRequestStatus},
     git,
 };
+use config::Config;
+use inquire::Text;
 use regex::Regex;
 
 pub struct RepoMetadata {
@@ -116,6 +118,43 @@ pub(crate) fn extract_id_from_url(url: String) -> Option<String> {
     }
 
     None
+}
+
+pub(crate) async fn extract_id(id_or_url: Option<String>) -> Result<String> {
+    let id = id_or_url.map(|id_or_url| extract_id_from_url(id_or_url.clone()).unwrap_or(id_or_url));
+
+    match id {
+        Some(id) => Ok(id),
+        None => {
+            let branch = git::current_branch_v2().await?.0;
+            get_ticket_id_from_branch(branch).ok_or_eyre("Unable to extract userStory ID")
+        }
+    }
+}
+
+pub(crate) fn get_groq_api_key(config: &Config) -> Result<String> {
+    config
+        .clone()
+        .groq_api_key
+        .or_else(ai::groq::models::get_apikey_from_env)
+        .ok_or_eyre("No api key. Please provide a groq api key in order to use this feature")
+}
+
+pub(crate) fn get_groq_api_key_or_prompt(config: &mut Config) -> Result<String> {
+    match get_groq_api_key(config) {
+        Ok(k) => Ok(k),
+        Err(e) => match Text::new("Enter your Groq API key:")
+            .with_placeholder("gsk_XX")
+            .prompt_skippable()?
+        {
+            None => return Err(e),
+            Some(k) => {
+                config.update_groq_api_key(&k);
+                config.write()?;
+                Ok(k)
+            }
+        },
+    }
 }
 
 #[cfg(test)]

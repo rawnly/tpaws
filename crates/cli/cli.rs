@@ -110,6 +110,16 @@ pub enum TicketCommands {
     /// Print userStory ID
     GetId { url: Option<String> },
 
+    GenerateCommit {
+        id_or_url: Option<String>,
+
+        #[arg(long, default_value_t = false)]
+        json: bool,
+
+        #[arg(long, default_value_t = false)]
+        title_only: bool,
+    },
+
     /// Print project details
     GetProject {
         #[arg(long)]
@@ -165,6 +175,9 @@ pub enum PullRequestCommands {
         /// PR base branch
         #[arg(long, short, default_value = "develop")]
         base: String,
+
+        #[arg(long, default_value_t = false)]
+        ai: bool,
     },
     /// Retrive a PR
     View {

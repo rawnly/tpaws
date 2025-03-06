@@ -1,3 +1,6 @@
+use ai::groq;
+
+use ai::groq::models;
 use clap::CommandFactory;
 use clap::Parser;
 use color_eyre::{
@@ -15,6 +18,7 @@ use global_utils::print_dbg;
 use human_panic::setup_panic;
 use mdka::from_html;
 use std::str::FromStr;
+use target_process::models::assignable::Assignable;
 use target_process::models::v2::assignable::Project;
 use target_process::{models::EntityStates, SearchOperator};
 
@@ -23,6 +27,7 @@ use crate::{
     context::GlobalContext,
     manifests::{node::PackageJson, Version},
     subcommands::release::ReleaseKind,
+    subcommands::user_story,
 };
 
 mod cli;
@@ -129,6 +134,10 @@ async fn main() -> Result<()> {
     }
 
     let create_pr_args = args.clone();
+    let groq_api_key = config
+        .clone()
+        .groq_api_key
+        .or_else(models::get_apikey_from_env);
 
     match args.command.unwrap() {
         cli::Commands::PullRequest {
@@ -166,15 +175,17 @@ async fn main() -> Result<()> {
                     base,
                     slack,
                     copy,
+                    ai,
                 } => {
                     subcommands::pull_request::create(
-                        ctx,
+                        &mut ctx,
                         create_pr_args,
                         title,
                         description,
                         base,
                         is_slack_enabled(slack),
                         copy,
+                        ai,
                     )
                     .await?
                 }
@@ -484,6 +495,13 @@ async fn main() -> Result<()> {
                         }
                     },
                 }
+            }
+            cli::TicketCommands::GenerateCommit {
+                id_or_url,
+                json,
+                title_only,
+            } => {
+                user_story::generate_commit(id_or_url, json, title_only, &mut config).await?;
             }
             cli::TicketCommands::GenerateChangelog {
                 from,

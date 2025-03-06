@@ -9,6 +9,7 @@ path = "crates/cli/main.rs"
 
 [workspace]
 members = [
+  "crates/ai",
   "crates/target_process",
   "crates/config",
   "crates/commands",
@@ -38,6 +39,7 @@ regex = "*"
 
 [dependencies]
 # Local Crates
+ai = { path = "./crates/ai" }
 slack = { path = "./crates/slack" }
 commands = { path = "./crates/commands" }
 config = { path = "./crates/config" }
